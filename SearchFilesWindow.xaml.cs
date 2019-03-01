@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -52,12 +52,10 @@ namespace Srch {
             if (e.Key == Key.Enter) {
                 string searchString = null;
                 string filePattern = null;
-                Action action = () => { searchString = tbSearchBox.Text; filePattern = tbFilePattern.Text; }; Dispatcher.Invoke(action);       
-                if (searchString != "") {
-                    mainWindow.searchFilesString = searchString;
-                    this.Close();
-                    await Task.Run(() => mainWindow.StartSearchFiles(searchString, filePattern));
-                }
+                Action action = () => { searchString = tbSearchBox.Text; filePattern = tbFilePattern.Text; }; Dispatcher.Invoke(action);     
+                mainWindow.searchFilesString = searchString;
+                this.Close();
+                await Task.Run(() => mainWindow.StartSearchFiles(searchString, filePattern));
                 if (!mainWindow.searchFilesHistory.Contains(searchString)) {
                     mainWindow.searchFilesHistory.Enqueue(searchString);
                     if (mainWindow.searchFilesHistory.Count > 10) {
