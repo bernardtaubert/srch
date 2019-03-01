@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -54,6 +54,7 @@ namespace Srch {
         internal string editor2 = null;
         internal string editor3 = null;
         internal int fontSize = 10;
+		internal int fontSizeParsedFromFile = 10;
         internal int color = 0;
         internal List<string> extensions = new List<string>();
         internal List<string> searchPaths = new List<string>();
@@ -1445,11 +1446,11 @@ namespace Srch {
                     long endTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
                     tbMainAppend("(" + (endTime - startTime) + "ms): <" + searchString + "> was found " + counter + " times in " + fileCounter + " files");
                 }
-                action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
-                Dispatcher.Invoke(action);
                 tbMainScrollToEnd();
                 cancelSearch = false;
             }
+            action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
+            Dispatcher.Invoke(action);
             searchInProgress = false;
         }
         private void OpenEditor(ProcessStartInfo startInfo) {
@@ -2044,6 +2045,7 @@ namespace Srch {
                                 } else {
                                     this.fontSize = fontSize;
                                 }
+								fontSizeParsedFromFile = this.fontSize;
                                 tbMainFontSize(this.fontSize);
                             } catch (Exception e) { /* ignore exceptions during the read of this sub-option */
                             }
@@ -2144,6 +2146,12 @@ namespace Srch {
             }
             if (e.Key == Key.Q && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) {
                 CancelSearch();
+            }
+			if (e.Key == Key.D0 && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) { // Pressing the keys Control+0 resets the fontSize to the one which has been parsed from File earlier
+                this.fontSize = fontSizeParsedFromFile;
+				tbMainFontSize(this.fontSize);
+                if (settingsWindow != null)
+                    settingsWindow.SetFontSize(this.fontSize);                
             }
             if (Keyboard.IsKeyDown(Key.F10)) { // this is to work around the windows default operation when pressing F10 key, which is to activate the window menu bar
                 ParseOptionsFromFile("F10.txt");
@@ -2303,6 +2311,24 @@ namespace Srch {
                     OpenEditorAsync(startInfo);
                 } catch (Exception ex) {
                     MessageBox.Show("Error when trying to open the Editor\n" + ex.StackTrace);
+                }
+            }
+        }
+        private void OnClickMenuItemAssociatedApplication(object sender, RoutedEventArgs e)
+        {
+            Point pt = PtMouseDown;
+            pt.X = 0;
+            int idx = tbMain.GetCharacterIndexFromPoint(pt, true);
+            string path = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[0];
+            if (File.Exists(path))
+            {
+                try
+                { // open the specified Editor and open the file under cursor at the specified line
+                    Process.Start(path);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error when trying to open the Application\n" + ex.StackTrace);
                 }
             }
         }
