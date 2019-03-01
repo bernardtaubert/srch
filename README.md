@@ -44,10 +44,6 @@ Edit the .txt files in the root folder to specify the default search path.
 - Implement a more intuitive color picker.
 - Highlight the searchstring in the results (a switch to richtext is needed).
 
-## Contact
-
-If you find any bugs, please contact me at srch.bughunting(at)googlemail.com.
-
 ## Compiling
 
 The application is compiled with
