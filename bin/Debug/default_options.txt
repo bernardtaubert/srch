@@ -9,7 +9,7 @@ SearchSubDirectories=1
 SearchFilesSubDirectories=1
 
 <Extensions>
-c;h
+*
 
 <SourcePath>
 D:\sourcecode_noComments
