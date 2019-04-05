@@ -15,7 +15,7 @@ SearchFilesSubDirectories=1
 D:\sourcecode_noComments
 
 <Editor1>
-"C:\Notepad++\notepad++.exe" %path -n%linenumber
+"C:\Notepad++\notepad++.exe" "%path" -n%linenumber
 
 <Editor2>
 Name=UltraEdit
