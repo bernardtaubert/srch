@@ -20,7 +20,7 @@ Run srch.exe and drag & drop a folder you want to search.
 
 - CTRL + F<pre>Search text</pre>
 - CTRL + Shift + F<pre>Search files</pre>
-- CTRL + Q<pre>Cancel search</pre>
+- CTRL + C<pre>Cancel search</pre>
 - CTRL + S<pre>Settings</pre>
 - CTRL + ENTER<pre>Search selected text (global hotkey)</pre>
 - F1 to F12<pre>Load options from files</pre>

@@ -24,6 +24,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -61,7 +62,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Keys.cs" />
     <Compile Include="Options.cs" />
+    <Compile Include="ParseOptions.cs" />
     <Compile Include="SearchFilesWindow.xaml.cs">
       <DependentUpon>SearchFilesWindow.xaml</DependentUpon>
     </Compile>

@@ -14,6 +14,7 @@
                     <ContextMenu>
                         <MenuItem Header="Open with " x:Name="miEditor2" Click="OnClickMenuItemEditor2"/>
                         <MenuItem Header="Open with " x:Name="miEditor3" Click="OnClickMenuItemEditor3"/>
+                        <MenuItem Header="Open with associated application" x:Name="miAssociatedApplication" Click="OnClickMenuItemAssociatedApplication"/>
                         <MenuItem Header="Open containing folder" x:Name="miOpenFolder" Click="OnClickMenuItemOpenFolder"/>
                         <MenuItem Header="Search in file" x:Name="miSearchInFile" Click="OnClickMenuSearchInFile"/>
                 </ContextMenu>
