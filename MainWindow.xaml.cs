@@ -141,22 +141,25 @@ namespace Srch {
             return IntPtr.Zero;
         }
         private void OnHotKeyPressed() {
-            Keys.INPUT[] Inputs = new Keys.INPUT[2];
-            Keys.INPUT Input = new Keys.INPUT();
+	    if (!searchInProgress)
+            {
+		    Keys.INPUT[] Inputs = new Keys.INPUT[2];
+		    Keys.INPUT Input = new Keys.INPUT();
 
-            Input.type = 1; // 1 = Keyboard Input
-            Input.U.ki.wScan = Keys.ScanCodeShort.LCONTROL;
-            Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
-            Inputs[0] = Input;
+		    Input.type = 1; // 1 = Keyboard Input
+		    Input.U.ki.wScan = Keys.ScanCodeShort.LCONTROL;
+		    Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
+		    Inputs[0] = Input;
 
-            Input.type = 1; // 1 = Keyboard Input
-            Input.U.ki.wScan = Keys.ScanCodeShort.KEY_C;
-            Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
-            Inputs[1] = Input;
+		    Input.type = 1; // 1 = Keyboard Input
+		    Input.U.ki.wScan = Keys.ScanCodeShort.KEY_C;
+		    Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
+		    Inputs[1] = Input;
 
-            Keys.SendInput(2, Inputs, Keys.INPUT.Size);
-            Thread.Sleep(80);
-            StartSearch(Clipboard.GetText(), "");
+		    Keys.SendInput(2, Inputs, Keys.INPUT.Size);
+		    Thread.Sleep(80);
+		    StartSearch(Clipboard.GetText(), "");
+	    }
         }
         protected override void OnClosed(EventArgs e) {
             _source.RemoveHook(HwndHook);
