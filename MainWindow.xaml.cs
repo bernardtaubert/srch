@@ -141,25 +141,25 @@ namespace Srch {
             return IntPtr.Zero;
         }
         private void OnHotKeyPressed() {
-	    if (!searchInProgress)
+            if (!searchInProgress)
             {
-		    Keys.INPUT[] Inputs = new Keys.INPUT[2];
-		    Keys.INPUT Input = new Keys.INPUT();
+                Keys.INPUT[] Inputs = new Keys.INPUT[2];
+                Keys.INPUT Input = new Keys.INPUT();
 
-		    Input.type = 1; // 1 = Keyboard Input
-		    Input.U.ki.wScan = Keys.ScanCodeShort.LCONTROL;
-		    Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
-		    Inputs[0] = Input;
+                Input.type = 1; // 1 = Keyboard Input
+                Input.U.ki.wScan = Keys.ScanCodeShort.LCONTROL;
+                Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
+                Inputs[0] = Input;
 
-		    Input.type = 1; // 1 = Keyboard Input
-		    Input.U.ki.wScan = Keys.ScanCodeShort.KEY_C;
-		    Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
-		    Inputs[1] = Input;
+                Input.type = 1; // 1 = Keyboard Input
+                Input.U.ki.wScan = Keys.ScanCodeShort.KEY_C;
+                Input.U.ki.dwFlags = Keys.KEYEVENTF.SCANCODE;
+                Inputs[1] = Input;
 
-		    Keys.SendInput(2, Inputs, Keys.INPUT.Size);
-		    Thread.Sleep(80);
-		    StartSearch(Clipboard.GetText(), "");
-	    }
+                Keys.SendInput(2, Inputs, Keys.INPUT.Size);
+                Thread.Sleep(80);
+                StartSearch(Clipboard.GetText(), "");
+            }
         }
         protected override void OnClosed(EventArgs e) {
             _source.RemoveHook(HwndHook);
@@ -531,8 +531,8 @@ namespace Srch {
                     while (index != -1) {
                         bool found = true;
                         int i = index + charIndexLast;
+                        cancelSearch.ThrowIfCancellationRequested();
                         if (i < text.Length) {
-                            cancelSearch.ThrowIfCancellationRequested();
                             if (index - charIndex >= 0) {
                                 for (int j = searchString.Length - 1; j >= 0; j--) {
                                     if (searchString[j] == text[i]) {
@@ -647,8 +647,8 @@ namespace Srch {
                     while (index != -1) {
                         bool found = true;
                         int i = index + charIndexLast;
+                        cancelSearch.ThrowIfCancellationRequested();
                         if (i < textToLower.Length) {
-                            cancelSearch.ThrowIfCancellationRequested();
                             if (index - charIndex >= 0) {
                                 for (int j = searchString.Length - 1; j >= 0; j--) {
                                     if (searchString[j] == textToLower[i]) {
@@ -722,8 +722,8 @@ namespace Srch {
                     while (index != -1) {
                         bool found = true;
                         int i = index + charIndexLast;
+                        cancelSearch.ThrowIfCancellationRequested();
                         if (i < text.Length) {
-                            cancelSearch.ThrowIfCancellationRequested();
                             if (index - charIndex >= 0) {
                                 for (int j = searchString.Length - 1; j >= 0; j--) {
                                     if (searchString[j] == text[i]) {
@@ -837,8 +837,8 @@ namespace Srch {
                     while (index != -1) {
                         bool found = true;
                         int i = index + charIndexLast;
+                        cancelSearch.ThrowIfCancellationRequested();
                         if (i < textToLower.Length) {
-                            cancelSearch.ThrowIfCancellationRequested();
                             if (index - charIndex >= 0) {
                                 for (int j = searchString.Length - 1; j >= 0; j--) {
                                     if (searchString[j] == textToLower[i]) {
