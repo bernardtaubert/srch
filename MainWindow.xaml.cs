@@ -37,7 +37,7 @@ namespace Srch {
         internal string editor2 = null;
         internal string editor3 = null;
         internal int fontSize = 10;
-		internal int fontSizeParsedFromFile = 10;
+        internal int fontSizeParsedFromFile = 10;
         internal int color = 0;
         internal List<string> extensions = new List<string>();
         internal List<string> searchPaths = new List<string>();
