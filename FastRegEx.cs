@@ -54,8 +54,6 @@ namespace Srch
         static public bool Validate() {
             int idx = 0;
             int i = 0;
-            int j = 0;
-            bool[] tmpSpecialCharAtIdx = null;            
             if (searchString.Trim().Equals("")) { // if string consists only of whitespace characters
                 return false; // return invalid, unrecognized escape sequence
             }

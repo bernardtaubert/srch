@@ -9,7 +9,7 @@
         Title="Srch" Height="350" Width="525">
     <DockPanel LastChildFill="True">
         <ProgressBar x:Name="progressBar" Height="4" DockPanel.Dock="Bottom" IsIndeterminate="True" PreviewKeyDown="OnPbPreviewKeyDown" Margin="0,0,0.4,0" BorderThickness="0"/>
-            <TextBox TextWrapping="NoWrap" Text="" x:Name="tbMain" PreviewKeyDown="OnTbMainPreviewKeyDown" PreviewMouseWheel="OnMouseWheel" PreviewMouseRightButtonDown="OnTbPreviewMouseRightButtonDown" AllowDrop="True" PreviewDragOver="OnDragOver" PreviewDrop="OnDragDrop" RenderTransformOrigin="0.5,1" VerticalAlignment="Stretch" IsReadOnly="True" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" FontSize="10">
+            <TextBox TextWrapping="NoWrap" Text="" x:Name="tbMain" PreviewKeyDown="OnTbMainPreviewKeyDown" PreviewMouseWheel="OnMouseWheel" PreviewMouseRightButtonDown="OnTbPreviewMouseRightButtonDown" AllowDrop="True" PreviewDragOver="OnDragOver" PreviewDrop="OnDragDrop" RenderTransformOrigin="0.5,1" VerticalAlignment="Stretch" IsReadOnly="True" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" FontSize="10" HorizontalScrollBarVisibility="Auto">
                 <TextBox.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Open with " x:Name="miEditor2" Click="OnClickMenuItemEditor2"/>

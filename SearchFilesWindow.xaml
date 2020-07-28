@@ -19,7 +19,7 @@
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <ComboBox Grid.Row="0" Grid.Column="0" x:Name="cbSearchBox" HorizontalAlignment="Stretch" Margin="10,10,10,-0.4"  SelectionChanged="cbSearchBoxSelectionChanged" VerticalAlignment="Top" Width="Auto" IsEditable="True" Height="18"/>
-        <TextBox Grid.Row="0" Grid.Column="0" x:Name="tbSearchBox" HorizontalAlignment="Stretch" Height="18" Margin="10,10,24,-0.4" TextWrapping="NoWrap" AcceptsReturn="False" VerticalAlignment="Top" Width="Auto" PreviewMouseWheel="OnMouseWheelTbSearchBox" ToolTip="Search for files using .NET RegEx"/>
+        <TextBox Grid.Row="0" Grid.Column="0" x:Name="tbSearchBox" HorizontalAlignment="Stretch" Height="18" Margin="10,10,27,0" TextWrapping="NoWrap" AcceptsReturn="False" VerticalAlignment="Top" Width="Auto" PreviewMouseWheel="OnMouseWheelTbSearchBox" ToolTip="Search for files using .NET RegEx"/>
         <CheckBox Grid.Row="1" Grid.Column="0" x:Name="cbSearchFilesSubDirectories" Checked="cbSearchFilesSubDirectoriesCheckedChanged" Unchecked="cbSearchFilesSubDirectoriesCheckedChanged" Content="search files in sub directories" HorizontalAlignment="Left" Margin="10,5.2,0,0" VerticalAlignment="Top" Width="Auto" Height="Auto"/>
         <TextBox Grid.Row="3" Grid.Column="0" x:Name="tbFilePattern" HorizontalAlignment="Stretch" Height="18" Margin="11,0.6,10,10" ToolTip="Only consider Files that match a certain pattern, use , as delimiter and *. as wildcards." TextWrapping="NoWrap" AcceptsReturn="False" VerticalAlignment="Top" Width="246"/>
         <Label Grid.Row="2" Grid.Column="0" Content="file filter" HorizontalAlignment="Left" Margin="10,4,0,0" VerticalAlignment="Top" Height="Auto" Width="Auto"/>

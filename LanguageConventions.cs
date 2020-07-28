@@ -17,8 +17,8 @@ namespace Srch
             ' ',
         };
         public static char[] newLine = {
-            (char)13,
-            (char)10,
+            (char)13, /** carriage return **/
+            (char)10, /** line feed **/
         };
         public static char[, ,] commentBlockDelimiters = { 
             { {'/','*'}, {'*', '/'}, }, /** multi-line comment delimiters */

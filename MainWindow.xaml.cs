@@ -26,7 +26,8 @@ namespace Srch {
         // Runtime Data
         internal Options options = null;
         private Options tmpOptions = null; // copy of Options while the search is ongoing
-        
+
+        private static int maxTbLineLength = 999;
         private string[] searchResults = null;
         internal string searchString = null;
         internal string fileFilter = null;
@@ -41,17 +42,15 @@ namespace Srch {
         internal int color = 0;
         internal List<string> extensions = new List<string>();
         internal List<string> searchPaths = new List<string>();
-        private string searchDir = null;
         private int counter = 0;
         private int fileCounter = 0;
         private static List<string> files = null;
-        internal static StreamWriter sw = null;
+        private static StreamWriter sw = null;
         private static SearchWindow searchWindow = null;
         private static SearchFilesWindow searchFilesWindow = null;
         internal SettingsWindow settingsWindow = null;
         internal Queue<string> searchHistory = new Queue<string>();
         internal Queue<string> searchFilesHistory = new Queue<string>();
-
         // Threading
         static private int threads = Environment.ProcessorCount; // number of search threads
         static private bool[] threadInProgress = new bool[threads];
@@ -199,7 +198,7 @@ namespace Srch {
             foreach (string s in tmpSearchPaths) {
                 string[] tmpFiles = null;
                 try {
-                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchSubDirectories))
+                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchFilesSubDirectories))
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.AllDirectories);
                     else
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.TopDirectoryOnly);
@@ -555,13 +554,29 @@ namespace Srch {
                                     if (lineStart != -1 && lineEnd != -1) {
                                         int lineNumber = StringUtil.GetLineNumberFromIndex(text, lineStart + 1);
                                         if (lineNumber == 1)
-                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber  + ")\t" + text.Substring(lineStart, lineEnd - 1 - lineStart - 1).TrimStart());
+                                        {
+                                            string line = text.Substring(lineStart, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + line);
+                                        }
                                         else
-                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart());                                       
+                                        {
+                                            string line = text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + line);
+                                        }
                                     } else if (lineStart == -1 && lineEnd != -1) {
-                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart());
+                                        string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
+                                        if (line.Length > maxTbLineLength)
+                                            line = line.Substring(0, maxTbLineLength);
+                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
                                     } else if (lineStart != -1 && lineEnd == -1) {
-                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + text.Substring(lineStart + 1, text.Length - lineStart - 1).TrimStart());
+                                        string line = text.Substring(lineStart + 1, text.Length - lineStart - 1).TrimStart();
+                                        if (line.Length > maxTbLineLength)
+                                            line = line.Substring(0, maxTbLineLength);
+                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
                                     } else {
                                         stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                     }
@@ -614,6 +629,9 @@ namespace Srch {
                                     foundInFile = true;
                                     fileCounter++;
                                 }
+                                if (line.Length > maxTbLineLength)
+                                    line = line.Substring(0, maxTbLineLength);
+
                                 stringWriter.WriteLine(f.FullName + "\t(" + linenumber + ")\t" + line);
                             }
                         } catch (FormatException e) {
@@ -671,14 +689,36 @@ namespace Srch {
                                     if (lineStart != -1 && lineEnd != -1) {
                                         int lineNumber = StringUtil.GetLineNumberFromIndex(text, lineStart + 1);
                                         if (lineNumber == 1)
-                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + text.Substring(lineStart, lineEnd - 1 - lineStart - 1).TrimStart());
+                                        {
+                                            string line = text.Substring(lineStart, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + line);
+                                        }
                                         else
-                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart());
-                                    } else if (lineStart == -1 && lineEnd != -1) {
-                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart());
-                                    } else if (lineStart != -1 && lineEnd == -1) {
-                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + text.Substring(lineStart + 1, textToLower.Length - lineStart - 1).TrimStart());
-                                    } else {
+                                        {
+                                            string line = text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + line);
+                                        }
+                                    } 
+                                    else if (lineStart == -1 && lineEnd != -1) 
+                                    {
+                                        string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
+                                        if (line.Length > maxTbLineLength)
+                                            line = line.Substring(0, maxTbLineLength);
+                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
+                                    } 
+                                    else if (lineStart != -1 && lineEnd == -1) 
+                                    {
+                                        string line = text.Substring(lineStart + 1, textToLower.Length - lineStart - 1).TrimStart();
+                                        if (line.Length > maxTbLineLength)
+                                            line = line.Substring(0, maxTbLineLength);
+                                        stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
+                                    } 
+                                    else 
+                                    {
                                         stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                     }
                                     if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine)) {
@@ -785,13 +825,29 @@ namespace Srch {
                                         if (i != -1)
                                             lineStart = text.LastIndexOf(LanguageConventions.newLine[1], i);
                                         int lineEnd = text.IndexOf(LanguageConventions.newLine[1], index + charIndexLast + 1);
-                                        if (lineStart != -1 && lineEnd != -1) {
-                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart());
-                                        } else if (lineStart == -1 && lineEnd != -1) {
-                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart());
-                                        } else if (lineStart != -1 && lineEnd == -1) {
-                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + text.Substring(lineStart + 1, text.Length - lineStart - 1).TrimStart());
-                                        } else {
+                                        if (lineStart != -1 && lineEnd != -1) 
+                                        {
+                                            string line = text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
+                                        } 
+                                        else if (lineStart == -1 && lineEnd != -1) 
+                                        {
+                                            string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
+                                        } 
+                                        else if (lineStart != -1 && lineEnd == -1) 
+                                        {
+                                            string line = text.Substring(lineStart + 1, text.Length - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
+                                        } 
+                                        else 
+                                        {
                                             stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                         }
                                         if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine)) {
@@ -899,12 +955,26 @@ namespace Srch {
                                         }
                                         int lineStart = textToLower.LastIndexOf(LanguageConventions.newLine[1], i);
                                         int lineEnd = textToLower.IndexOf(LanguageConventions.newLine[1], index + charIndexLast + 1);
-                                        if (lineStart != -1 && lineEnd != -1) {
-                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart());
-                                        } else if (lineStart == -1 && lineEnd != -1) {
-                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart());
-                                        } else if (lineStart != -1 && lineEnd == -1) {
-                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + text.Substring(lineStart + 1, textToLower.Length - lineStart - 1).TrimStart());
+                                        if (lineStart != -1 && lineEnd != -1) 
+                                        {
+                                            string line = text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
+                                        } 
+                                        else if (lineStart == -1 && lineEnd != -1) 
+                                        {
+                                            string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
+                                        } 
+                                        else if (lineStart != -1 && lineEnd == -1) 
+                                        {
+                                            string line = text.Substring(lineStart + 1, textToLower.Length - lineStart - 1).TrimStart();
+                                            if (line.Length > maxTbLineLength)
+                                                line = line.Substring(0, maxTbLineLength);
+                                            stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
                                         } else {
                                             stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                         }
@@ -959,6 +1029,9 @@ namespace Srch {
                                     foundInFile = true;
                                     fileCounter++;
                                 }
+                                if (line.Length > maxTbLineLength)
+                                    line = line.Substring(0, maxTbLineLength);
+
                                 stringWriter.WriteLine(f.FullName + "\t(" + linenumber + ")\t" + line);
                             }
                         } catch (Exception e) {
