@@ -10,6 +10,7 @@ A code searching tool for windows
 - RegEx
 - Case-Sensitivity
 - Whole word Only
+- Multistring search
 - Extension filter
 - Drag & Drop
 - GUI
@@ -22,7 +23,7 @@ Run srch.exe and drag & drop a folder you want to search.
 - CTRL + Shift + F<pre>Search files</pre>
 - CTRL + C<pre>Cancel search</pre>
 - CTRL + S<pre>Settings</pre>
-- CTRL + M<pre>Multistring search</pre>
+- CTRL + M<pre>Multistring search</pre>
 - CTRL + ENTER<pre>Search selected text (global hotkey)</pre>
 - F1 to F12<pre>Load options from files</pre>
 
