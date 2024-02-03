@@ -20,7 +20,7 @@ namespace Srch
             (char)13, /** carriage return **/
             (char)10, /** line feed **/
         };
-        public static char[, ,] commentBlockDelimiters = { 
+        public static char[,,] commentBlockDelimiters = {
             { {'/','*'}, {'*', '/'}, }, /** multi-line comment delimiters */
         };
         public static char[,] commentLineDelimiters = {
@@ -100,14 +100,19 @@ namespace Srch
             '$',
             '\''
         };
-        static public int GetRarestCharIndex(string searchString) {
+        static public int GetRarestCharIndex(string searchString)
+        {
             int index = 0;
             int curMin = int.MaxValue;
             int j = 0;
-            foreach (char c in searchString) {
-                for (int i = 0; i < LanguageConventions.charDistributionList.Length; i++) {
-                    if (LanguageConventions.charDistributionList[i] == c) {
-                        if (LanguageConventions.charDistributionQuantity[i] < curMin) {
+            foreach (char c in searchString)
+            {
+                for (int i = 0; i < LanguageConventions.charDistributionList.Length; i++)
+                {
+                    if (LanguageConventions.charDistributionList[i] == c)
+                    {
+                        if (LanguageConventions.charDistributionQuantity[i] < curMin)
+                        {
                             curMin = LanguageConventions.charDistributionQuantity[i];
                             index = j;
                         }

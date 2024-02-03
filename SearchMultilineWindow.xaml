@@ -1,0 +1,44 @@
+﻿<Window
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" x:Class="Srch.SearchMultilineWindow"
+        WindowStartupLocation="CenterScreen" 
+        ResizeMode="NoResize"
+        PreviewKeyDown="OnWindowKeyDown"
+        PreviewMouseWheel="OnMouseWheelTbSearchBox"
+        BorderThickness="0"
+        Closing="OnWindowClosing"  
+        Title="Multiline Search in Files" Height="324.8" Width="332.66">
+    <Grid Height="280" VerticalAlignment="Top">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" MinHeight="113"/>
+            <RowDefinition Height="Auto" MinHeight="55"/>
+            <RowDefinition Height="Auto" MinHeight="21"/>
+            <RowDefinition Height="Auto" MinHeight="19"/>
+            <RowDefinition Height="Auto" MinHeight="20"/>
+            <RowDefinition Height="Auto" MinHeight="20"/>
+            <RowDefinition Height="Auto" MinHeight="67"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <ComboBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" x:Name="cbSearchBox" HorizontalAlignment="Stretch" Margin="10,10,10,0" SelectionChanged="cbSearchBoxSelectionChanged" VerticalAlignment="Top" Width="Auto" IsEditable="True" Height="98"/>
+        <TextBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" x:Name="tbSearchBox" HorizontalAlignment="Stretch" Height="98" Margin="10,10,27,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="Auto" AcceptsReturn="True" PreviewMouseWheel="OnMouseWheelTbSearchBox"/>
+        <TextBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"  x:Name="tbFilePattern" HorizontalAlignment="Stretch" Height="18" Margin="10,20,10,0" AcceptsReturn="False" ToolTip="Only consider Files that match a certain pattern, use , as delimiter and *. as wildcards." TextWrapping="NoWrap" VerticalAlignment="Top" Width="Auto"/>
+        <CheckBox Grid.Row="1" Grid.Column="1"  x:Name="cbCaseSensitive" Checked="cbCaseSensitiveCheckedChanged" Unchecked="cbCaseSensitiveCheckedChanged" Content="case-sensitive" HorizontalAlignment="Left" Margin="7,2,0,0" VerticalAlignment="Top" Height="15" Width="93"/>
+        <CheckBox Grid.Row="1" Grid.Column="1"  x:Name="cbIgnoreComments" Checked="cbIgnoreCommentsCheckedChanged" Unchecked="cbIgnoreCommentsCheckedChanged" Content="ignore comments" HorizontalAlignment="Left" Margin="7,20,0,0" VerticalAlignment="Top" Width="113" Height="15"/>
+        <CheckBox Grid.Row="1" Grid.Column="1"  x:Name="cbOnlyShow1EntryPerLine" IsEnabled="True" Checked="cbOnlyShow1EntryPerLineCheckedChanged" Unchecked="cbOnlyShow1EntryPerLineCheckedChanged" Content="only show first result in line" HorizontalAlignment="Left" Margin="7,40,0,0" VerticalAlignment="Top" Width="164" ToolTip="Drop further results in the same line" Height="15" />
+        <CheckBox Grid.Row="1" Grid.Column="1"  x:Name="cbSearchSubDirectories" Checked="cbSearchSubDirectoriesCheckedChanged" Unchecked="cbSearchSubDirectoriesCheckedChanged" Content="search sub directories" HorizontalAlignment="Left" Margin="7,60,0,0" VerticalAlignment="Top" Width="135" Height="15"/>
+        <RadioButton Grid.Row="1" Grid.Column="0" x:Name="rbMultiAll" GroupName="Group2" Content="Multisearch all" HorizontalAlignment="Left" Margin="10,3,0,0" VerticalAlignment="Top" Checked="MultiRadioButton_Checked" ToolTip="Search multiple strings and display files that contain all of them" Height="15" Width="102"/>
+        <RadioButton Grid.Row="1" Grid.Column="0" x:Name="rbMultiAny" GroupName="Group2" Content="Multisearch any" HorizontalAlignment="Left" Margin="10,19,0,0" VerticalAlignment="Top" Checked="MultiRadioButton_Checked" ToolTip="Search multiple strings and display files that contain any of them" Height="15" Width="102"/>
+        <RadioButton Grid.Row="1" Grid.Column="0" x:Name="rbMultiNone" GroupName="Group2" Content="Multisearch none" HorizontalAlignment="Left" Margin="10,36,0,0" VerticalAlignment="Top" Checked="MultiRadioButton_Checked" ToolTip="Search multiple strings and display files that contain none of them" Height="15" Width="113"/>
+        <RadioButton Grid.Row="2" Grid.Column="0" x:Name="rbDefault" GroupName="Group1" Content="default" HorizontalAlignment="Left" Margin="10,2,0,0" VerticalAlignment="Top" Checked="RadioButton_Checked" ToolTip="The default search option is not supporting RegEx, but fastest" Height="15" Width="56"/>
+        <RadioButton Grid.Row="3" Grid.Column="0" x:Name="rbWholeWordsOnly" GroupName="Group1" Content="whole words only" Margin="10,1,0,0" VerticalAlignment="Top" Checked="RadioButton_Checked" Height="15"/>
+        <!--
+            <RadioButton Grid.Row="4" Grid.Column="0" x:Name="rbFastRegEx" GroupName="Group1" Content="RegEx .*^$\" HorizontalAlignment="Left" Margin="10,2,0,0" VerticalAlignment="Top" Checked="RadioButton_Checked" ToolTip="Custom fast and simplified (POSIX style) RegEx only allowing .*^$\ (line-wise search)" Height="15" Width="81" />
+            <RadioButton Grid.Row="5" Grid.Column="0" x:Name="rbNETRegEx" GroupName="Group1" Content="RegEx .NET" HorizontalAlignment="Left" Margin="10,3,0,0" VerticalAlignment="Top" Checked="RadioButton_Checked" ToolTip="Warning: .NET RegEx severely slow down the performance (line-wise search)." Height="15" Width="78" />
+        -->
+        <Label Grid.Row="3" Grid.Column="0"  Content="file filter" HorizontalAlignment="Left" Margin="10,18,0,0" VerticalAlignment="Top" Height="26" Width="53" Grid.RowSpan="2"/>
+    </Grid>
+</Window>

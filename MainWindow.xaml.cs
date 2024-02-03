@@ -12,12 +12,15 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Linq.Expressions;
 
-namespace Srch {
+namespace Srch
+{
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window {
+    public partial class MainWindow : Window
+    {
         #region Variables
         // Internal
         public ICommand WindowClosing { get; private set; }
@@ -27,7 +30,7 @@ namespace Srch {
         internal Options options = null;
         private Options tmpOptions = null; // copy of Options while the search is ongoing
 
-        private static int maxTbLineLength = 999;
+        private static int maxTbLineLength = 512;
         private string[] searchResults = null;
         internal string searchString = null;
         internal string fileFilter = null;
@@ -47,9 +50,11 @@ namespace Srch {
         private static List<string> files = null;
         private static StreamWriter sw = null;
         private static SearchWindow searchWindow = null;
+        private static SearchMultilineWindow searchMultilineWindow = null;
         private static SearchFilesWindow searchFilesWindow = null;
         internal SettingsWindow settingsWindow = null;
         internal Queue<string> searchHistory = new Queue<string>();
+        internal Queue<string> searchMultilineHistory = new Queue<string>();
         internal Queue<string> searchFilesHistory = new Queue<string>();
         // Threading
         static private int threads = Environment.ProcessorCount; // number of search threads
@@ -80,23 +85,17 @@ namespace Srch {
             [In] IntPtr hWnd,
             [In] int id);
         #endregion
-        
-        public MainWindow() {
+
+        public MainWindow()
+        {
             InitializeComponent();
             string[] args = Environment.GetCommandLineArgs();
             options = new Options(); // search options container
-            #region ParseFromCommandLine
-            switch (args.Length) {
-                case 1:
-                    break;
-                case 2:
-                    searchPaths.Add(args[1]);
-                    break;
-                default:
-                    break;
-            }
-            #endregion
             ParseOptions.ParseOptionsFromFile("default_options.txt", this);
+			searchPaths.Clear();
+			for (int i = 0; i < args.Length; i++)
+				if (i > 0)
+					searchPaths.Add(args[i]); // parse paths from command line
             searchResults = new string[threads];
             sw = new StreamWriter(Console.OpenStandardOutput());
             sw.AutoFlush = true;
@@ -106,30 +105,37 @@ namespace Srch {
             PrintCurrentSearchPath();
         }
         #region GlobalHotkeyRegistration
-        protected override void OnSourceInitialized(EventArgs e) {
+        protected override void OnSourceInitialized(EventArgs e)
+        {
             base.OnSourceInitialized(e);
             var helper = new WindowInteropHelper(this);
             _source = HwndSource.FromHwnd(helper.Handle);
             _source.AddHook(HwndHook);
-            RegisterHotKey(); 
+            RegisterHotKey();
         }
-        private void RegisterHotKey() {
+        private void RegisterHotKey()
+        {
             var helper = new WindowInteropHelper(this);
             const uint VK_ENTER = 0x0D;
             const uint MOD_CTRL = 0x0002;
-            if (!RegisterHotKey(helper.Handle, HOTKEY_ID, MOD_CTRL, VK_ENTER)) {
+            if (!RegisterHotKey(helper.Handle, HOTKEY_ID, MOD_CTRL, VK_ENTER))
+            {
                 tbMainText("Error: Global hotkeys are already registered to another application.");
             }
         }
-        private void UnregisterHotKeyHelper() {
+        private void UnregisterHotKeyHelper()
+        {
             var helper = new WindowInteropHelper(this);
             UnregisterHotKey(helper.Handle, HOTKEY_ID);
         }
-        private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) {
+        private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
             const int WM_HOTKEY = 0x0312;
-            switch (msg) {
+            switch (msg)
+            {
                 case WM_HOTKEY:
-                    switch (wParam.ToInt32()) {
+                    switch (wParam.ToInt32())
+                    {
                         case HOTKEY_ID:
                             OnHotKeyPressed();
                             handled = true;
@@ -139,7 +145,8 @@ namespace Srch {
             }
             return IntPtr.Zero;
         }
-        private void OnHotKeyPressed() {
+        private void OnHotKeyPressed()
+        {
             if (!searchInProgress)
             {
                 Keys.INPUT[] Inputs = new Keys.INPUT[2];
@@ -160,22 +167,27 @@ namespace Srch {
                 StartSearch(Clipboard.GetText(), "");
             }
         }
-        protected override void OnClosed(EventArgs e) {
+        protected override void OnClosed(EventArgs e)
+        {
             _source.RemoveHook(HwndHook);
             _source = null;
             UnregisterHotKeyHelper();
             base.OnClosed(e);
         }
         #endregion
-        internal async void StartSearchFiles(string searchString, string filePattern) {
-            if (!searchInProgress) {
+        internal async void StartSearchFiles(string searchString, string filePattern)
+        {
+            if (!searchInProgress)
+            {
                 if (filePattern.Equals("")) filePattern = "*";
                 cancelSearch = false;
                 for (int i = 0; i < threads; i++) cancelSearchArr[i] = new CancellationTokenSource();
                 searchInProgress = true;
                 tbMainText("Searching for <" + searchString + ">\n");
                 await Task.Run(() => SetupSearchFilesThreads(searchString, filePattern));
-            } else {
+            }
+            else
+            {
                 CancelSearch();
                 while (searchInProgress) ; /* wait until search has stopped */
                 if (filePattern.Equals("")) filePattern = "*";
@@ -186,58 +198,79 @@ namespace Srch {
                 await Task.Run(() => SetupSearchFilesThreads(searchString, filePattern));
             }
         }
-        private async void SetupSearchFilesThreads(string searchString, string filePattern) { // this method sets up and handles parallel searchthread execution
+        private async void SetupSearchFilesThreads(string searchString, string filePattern)
+        { // this method sets up and handles parallel searchthread execution
             counter = 0;
             long startTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
             Action action = () => { progressBar.IsIndeterminate = true; /* start animation */ };
             Dispatcher.Invoke(action);
             files = new List<string>(); // create an Array of search Files filtered by search pattern
             List<string> tmpSearchPaths = new List<string>(); tmpSearchPaths = this.searchPaths; // create a temporary copy of the working data while the search is ongoing.
-            List<string> tmpExtensions = new List<string>();  tmpExtensions = this.extensions;
+            List<string> tmpExtensions = new List<string>(); tmpExtensions = this.extensions;
             tmpOptions = this.options;
-            foreach (string s in tmpSearchPaths) {
+            searchResults = new string[threads];
+            threadInProgress = new bool[threads];            
+        restart_loop:
+            foreach (string s in tmpSearchPaths)
+            {
                 string[] tmpFiles = null;
-                try {
+                try
+                {
                     if (tmpOptions.GetValue(Options.AvailableOptions.SearchFilesSubDirectories))
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.AllDirectories);
                     else
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.TopDirectoryOnly);
-                } catch (DirectoryNotFoundException dnfe) {
+                }
+                catch (DirectoryNotFoundException dnfe)
+                {
                     Console.Error.WriteLine("Error: Search path not found.");
                     tbMainText("Error: Search path not found.");
                     action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
                     Dispatcher.Invoke(action);
                     searchInProgress = false;
                     return;
-                } catch (InvalidOperationException ioe) {
+                }
+                catch (InvalidOperationException ioe)
+                {
                     Console.Error.WriteLine("Error: Filepattern invalid.");
                     tbMainText("Error: Filepattern invalid.");
                     action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
                     Dispatcher.Invoke(action);
                     searchInProgress = false;
                     return;
-                } catch (ArgumentException ae) {
+                }
+                catch (ArgumentException ae)
+                {
                     Console.Error.WriteLine("Error: Filepattern invalid.");
                     tbMainText("Error: Filepattern invalid.");
                     action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
                     Dispatcher.Invoke(action);
                     searchInProgress = false;
                     return;
-                } catch (UnauthorizedAccessException uae) {
-                    Console.Error.WriteLine("Error: Unauthorized Access.");
-                    tbMainText("Error: Unauthorized Access.");
-                    action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
-                    Dispatcher.Invoke(action);
-                    searchInProgress = false;
-                    return;
-                } 
+                }
+                catch (UnauthorizedAccessException uae)
+                {
+                    tmpSearchPaths.Remove(s);
+                    try
+                    {
+                        foreach (string d in Directory.GetDirectories(s, "*", SearchOption.TopDirectoryOnly))
+                            tmpSearchPaths.Add(d);
+                    }
+                    catch (Exception e)
+                    {
+                    }
+                    goto restart_loop;
+                }
                 if (tmpExtensions[0].Equals("*"))
                     for (int i = 0; i < tmpFiles.Length; i++)
                         files.Add(tmpFiles[i].ToLower()); /* do not filter files, just add them as is */
-                else {
-                    for (int i = 0; i < tmpFiles.Length; i++) {
+                else
+                {
+                    for (int i = 0; i < tmpFiles.Length; i++)
+                    {
                         string fileToLower = tmpFiles[i].ToLower();
-                        foreach (string ext in tmpExtensions) {
+                        foreach (string ext in tmpExtensions)
+                        {
                             if (fileToLower.EndsWith("." + ext.ToLower()))
                                 files.Add(tmpFiles[i]);
                         }
@@ -245,26 +278,35 @@ namespace Srch {
                 }
             }
             tbMainText("");
-            foreach (string filename in files) {
-                try {
+            foreach (string filename in files)
+            {
+                try
+                {
                     Match match = Regex.Match(filename, searchString, RegexOptions.IgnoreCase); // before beginning the search, check if the RegEx Format is correct
-                    if (match.Success) {
+                    if (match.Success)
+                    {
                         await Task.Run(() => tbMainAppend(filename + "\t(" + 0 + ")\t\n"));
                         counter++;
                     }
-                } catch (System.ArgumentException e) {
+                }
+                catch (System.ArgumentException e)
+                {
                     tbMainText("Unrecognized RegEx format.");
                     break;
                 }
             }
-            if (cancelSearch) {
+            if (cancelSearch)
+            {
                 tbMainText("Search canceled.");
-                if (outOfMemory) {
+                if (outOfMemory)
+                {
                     Console.Error.WriteLine("Error: Out of Memory.");
                     tbMainText("Error: Out of Memory.");
                     outOfMemory = false;
                 }
-            } else {
+            }
+            else
+            {
                 long endTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
                 tbMainAppend("(" + (endTime - startTime) + "ms): <" + searchString + "> was found in " + counter + " files");
             }
@@ -272,19 +314,23 @@ namespace Srch {
             Dispatcher.Invoke(action);
             tbMainScrollToEnd();
             searchInProgress = false;
-            cancelSearch = false;    
+            cancelSearch = false;
         }
-        internal async void StartSearch(string searchString, string filePattern) {
-            if (!searchInProgress) {
+        internal async void StartSearch(string searchString, string filePattern)
+        {
+            if (!searchInProgress)
+            {
                 if (filePattern.Equals("")) filePattern = "*";
                 cancelSearch = false;
                 for (int i = 0; i < threads; i++) cancelSearchArr[i] = new CancellationTokenSource();
                 searchInProgress = true;
                 tbMainText("Searching for <" + searchString + ">\n");
                 await Task.Run(() => SetupSearchThreads(searchString, filePattern));
-            } else {
+            }
+            else
+            {
                 CancelSearch();
-                while(searchInProgress); /* wait until search has stopped */
+                while (searchInProgress) ; /* wait until search has stopped */
                 if (filePattern.Equals("")) filePattern = "*";
                 cancelSearch = false;
                 for (int i = 0; i < threads; i++) cancelSearchArr[i] = new CancellationTokenSource();
@@ -293,63 +339,85 @@ namespace Srch {
                 await Task.Run(() => SetupSearchThreads(searchString, filePattern));
             }
         }
-        private async void SetupSearchThreads(string searchString, string filePattern) { // this method sets up and handles parallel searchthread execution
+
+        private async void SetupSearchThreads(string searchString, string filePattern)
+        { // this method sets up and handles parallel searchthread execution
             bool unrecognizedRegExFormat = false;
             int start = 0;
             counter = 0;
             fileCounter = 0;
             int charIndex = 0;
-            char searchChar = (char) 0;
+            char searchChar = (char)0;
             long startTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
-            Action action = () => { progressBar.IsIndeterminate = true; /* start animation */ };            
+            Action action = () => { progressBar.IsIndeterminate = true; /* start animation */ };
             Dispatcher.Invoke(action);
             files = new List<string>(); // create an Array of search Files filtered by search pattern
             List<string> tmpSearchPaths = new List<string>(); tmpSearchPaths = this.searchPaths; // create a temporary copy of the working data while the search is ongoing.
-            List<string> tmpExtensions = new List<string>();  tmpExtensions = this.extensions;
-            tmpOptions = this.options;
-            foreach (string s in tmpSearchPaths) {
+            List<string> tmpExtensions = new List<string>(); tmpExtensions = this.extensions;
+            tmpOptions = this.options;            
+            searchResults = new string[threads];
+            threadInProgress = new bool[threads];  
+        restart_loop:
+            foreach (string s in tmpSearchPaths)
+            {
                 string[] tmpFiles = null;
-                try {
+                try
+                {
                     if (tmpOptions.GetValue(Options.AvailableOptions.SearchSubDirectories))
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.AllDirectories);
                     else
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.TopDirectoryOnly);
-                } catch (DirectoryNotFoundException dnfe) {
+                }
+                catch (DirectoryNotFoundException dnfe)
+                {
                     Console.Error.WriteLine("Error: Search path not found.");
                     tbMainText("Error: Search path not found.");
                     action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
                     Dispatcher.Invoke(action);
                     searchInProgress = false;
                     return;
-                } catch (InvalidOperationException ioe) {
+                }
+                catch (InvalidOperationException ioe)
+                {
                     Console.Error.WriteLine("Error: Filepattern invalid.");
                     tbMainText("Error: Filepattern invalid.");
                     action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
                     Dispatcher.Invoke(action);
                     searchInProgress = false;
                     return;
-                } catch (ArgumentException ae) {
+                }
+                catch (ArgumentException ae)
+                {
                     Console.Error.WriteLine("Error: Filepattern invalid.");
                     tbMainText("Error: Filepattern invalid.");
                     action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
                     Dispatcher.Invoke(action);
                     searchInProgress = false;
                     return;
-                } catch (UnauthorizedAccessException uae) {
-                    Console.Error.WriteLine("Error: Unauthorized Access.");
-                    tbMainText("Error: Unauthorized Access.");
-                    action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
-                    Dispatcher.Invoke(action);
-                    searchInProgress = false;
-                    return;
-                } 
+                }
+                catch (UnauthorizedAccessException uae)
+                {
+                    tmpSearchPaths.Remove(s);
+                    try
+                    {
+                        foreach (string d in Directory.GetDirectories(s, "*", SearchOption.TopDirectoryOnly))
+                            tmpSearchPaths.Add(d);
+                    }
+                    catch (Exception e)
+                    {
+                    }
+                    goto restart_loop;
+                }
                 if (tmpExtensions[0].Equals("*"))
                     for (int i = 0; i < tmpFiles.Length; i++)
                         files.Add(tmpFiles[i].ToLower()); /* do not filter files, just add them as is */
-                else {
-                    for (int i = 0; i < tmpFiles.Length; i++) {
+                else
+                {
+                    for (int i = 0; i < tmpFiles.Length; i++)
+                    {
                         string fileToLower = tmpFiles[i].ToLower();
-                        foreach (string ext in tmpExtensions) {
+                        foreach (string ext in tmpExtensions)
+                        {
                             if (fileToLower.EndsWith("." + ext.ToLower()))
                                 files.Add(tmpFiles[i]);
                         }
@@ -360,132 +428,178 @@ namespace Srch {
             int filesPerThread = filesCount / threads;
             int[] filesPerThreadArr = new int[threads];
             filesPerThreadArr[0] = filesCount - (filesPerThread * (threads - 1));
-            for (int i = 1; i < threads; i++) {
+            for (int i = 1; i < threads; i++)
+            {
                 filesPerThreadArr[i] = filesPerThread;
             }
             List<string>[] filesArr = new List<string>[threads];
-            for (int i = 0; i < filesArr.Length; i++) {
+            for (int i = 0; i < filesArr.Length; i++)
+            {
                 filesArr[i] = files.GetRange(start, filesPerThreadArr[i]);
                 start += filesPerThreadArr[i];
             }
             int optionId = 0; /* selector */
             List<Option> oList = tmpOptions.GetList();
-            for (int i = 0; i < 4; i++) { /* first 4 options are the radio buttons to specifiy the RegEx mode */
+            for (int i = 0; i < 4; i++)
+            { /* first 4 options are the radio buttons to specifiy the RegEx mode */
                 if (oList[i].GetValue() == true)
                     optionId = i;
             }
-            switch (optionId) {
+            switch (optionId)
+            {
                 case (int)Options.AvailableOptions.Default:
                     charIndex = LanguageConventions.GetRarestCharIndex((string)searchString); // default search w/o RegEx speed can be improved by searching for the rarest char
                     searchChar = ((string)searchString)[charIndex];
-                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive)) {
-                        for (int i = 0; i < threads; i++) { // create multiple searchthreads
+                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                    {
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
                             int id = i;
                             threadInProgress[id] = true;
-                            try {
+                            try
+                            {
                                 await Task.Run(() => ParseFiles(filesArr[id].ToArray(), (string)searchString, searchChar, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            } catch (OperationCanceledException e) { break; }
+                            }
+                            catch (OperationCanceledException e) { break; }
                         }
-                    } else {
+                    }
+                    else
+                    {
                         char searchCh = Char.ToLower(searchChar);
                         string searchStr = (string)searchString.ToLower();
-                        for (int i = 0; i < threads; i++) { // create multiple searchthreads
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
                             int id = i;
                             threadInProgress[id] = true;
-                            try {
+                            try
+                            {
                                 await Task.Run(() => ParseFilesCaseInsensitive(filesArr[id].ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            } catch (OperationCanceledException e) { break; }
+                            }
+                            catch (OperationCanceledException e) { break; }
                         }
                     }
                     break;
                 case (int)Options.AvailableOptions.WholeWordsOnly:
                     charIndex = LanguageConventions.GetRarestCharIndex((string)searchString); // default search w/o RegEx speed can be improved by searching for the rarest char
                     searchChar = ((string)searchString)[charIndex];
-                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive)) {
-                        for (int i = 0; i < threads; i++) { // create multiple searchthreads
+                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                    {
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
                             int id = i;
                             threadInProgress[id] = true;
-                            try {
+                            try
+                            {
                                 await Task.Run(() => ParseFilesWholeWordsOnly(filesArr[id].ToArray(), (string)searchString, Char.ToLower(searchChar), charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            } catch (OperationCanceledException e) { break; }
+                            }
+                            catch (OperationCanceledException e) { break; }
                         }
-                    } else {
+                    }
+                    else
+                    {
                         char searchCh = Char.ToLower(searchChar);
                         string searchStr = (string)searchString.ToLower();
-                        for (int i = 0; i < threads; i++) { // create multiple searchthreads
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
                             int id = i;
                             threadInProgress[id] = true;
-                            try {
+                            try
+                            {
                                 await Task.Run(() => ParseFilesCaseInsensitiveWholeWordsOnly(filesArr[id].ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            } catch (OperationCanceledException e) { break; }
+                            }
+                            catch (OperationCanceledException e) { break; }
                         }
                     }
                     break;
                 case (int)Options.AvailableOptions.FastRegEx:
                     FastRegEx fREx;
-                    try {
+                    try
+                    {
                         fREx = new FastRegEx(searchString);
-                    } catch (FormatException fex) {
+                    }
+                    catch (FormatException fex)
+                    {
                         tbMainText("Unrecognized RegEx format.");
                         unrecognizedRegExFormat = true;
                         break;
                     }
-                    for (int i = 0; i < threads; i++) { // create multiple searchthreads
+                    for (int i = 0; i < threads; i++)
+                    { // create multiple searchthreads
                         int id = i;
                         threadInProgress[id] = true;
-                        try {
+                        try
+                        {
                             await Task.Run(() => ParseFilesFastRegEx(filesArr[id].ToArray(), fREx, tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive), id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                        } catch (OperationCanceledException e) { break; }
+                        }
+                        catch (OperationCanceledException e) { break; }
                     }
                     break;
                 case (int)Options.AvailableOptions.NETRegEx:
-                    try {
+                    try
+                    {
                         Match match = Regex.Match("", searchString, RegexOptions.IgnoreCase); // before beginning the search, check if the RegEx Format is correct
-                    } catch (System.ArgumentException e) {
+                    }
+                    catch (System.ArgumentException e)
+                    {
                         tbMainText("Unrecognized RegEx format.");
                         unrecognizedRegExFormat = true;
                     }
-                    if (!unrecognizedRegExFormat) {
-                        for (int i = 0; i < threads; i++) { // create multiple searchthreads
+                    if (!unrecognizedRegExFormat)
+                    {
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
                             int id = i;
                             threadInProgress[id] = true;
-                            try {
+                            try
+                            {
                                 await Task.Run(() => ParseFilesRegEx(filesArr[id].ToArray(), (string)searchString.ToLower(), tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive), id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            } catch (OperationCanceledException e) { break; }
+                            }
+                            catch (OperationCanceledException e) { break; }
                         }
                     }
                     break;
                 default:
                     break;
             }
-            if (!unrecognizedRegExFormat) {
+            if (!unrecognizedRegExFormat)
+            {
                 bool allThreadsCompleted = true;
                 bool[] resultsShown = new bool[threads];
                 for (int i = 0; i < resultsShown.Length; i++) resultsShown[i] = false;
                 action = () => { progressBar.IsIndeterminate = true; /* start animation */ };
                 Dispatcher.Invoke(action);
-                while (allThreadsCompleted) {
+                while (allThreadsCompleted)
+                {
                     if (cancelSearch) break;
                     allThreadsCompleted = false;
-                    for (int i = 0; i < threads; i++) {
-                        if (!threadInProgress[i]) {
-                        } else {
+                    for (int i = 0; i < threads; i++)
+                    {
+                        if (!threadInProgress[i])
+                        {
+                        }
+                        else
+                        {
                             allThreadsCompleted = true;
                         }
                     } // busywait until all threads finish 
                 }
                 tbMainText("");
-                for (int i = 0; i < threads; i++) { // update UI on completion of all threads
+                for (int i = 0; i < threads; i++)
+                { // update UI on completion of all threads
                     tbMainAppend(searchResults[i]);
                 }
-                if (cancelSearch) {
+                if (cancelSearch)
+                {
                     tbMainText("Search canceled.");
-                    if (outOfMemory) {
+                    if (outOfMemory)
+                    {
                         Console.Error.WriteLine("Error: Out of Memory.");
                         tbMainText("Error: Out of Memory.");
                         outOfMemory = false;
                     }
-                } else {
+                }
+                else
+                {
                     long endTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
                     tbMainAppend("(" + (endTime - startTime) + "ms): <" + searchString + "> was found " + counter + " times in " + fileCounter + " files");
                 }
@@ -496,54 +610,400 @@ namespace Srch {
             Dispatcher.Invoke(action);
             searchInProgress = false;
         }
-        private void OpenEditor(ProcessStartInfo startInfo) {
-            try {
-                using (Process exeProcess = Process.Start(startInfo)) { // Start the process with the info specified. Call WaitForExit and then the using statement will close.
+        private void OpenEditor(ProcessStartInfo startInfo)
+        {
+            try
+            {
+                using (Process exeProcess = Process.Start(startInfo))
+                { // Start the process with the info specified. Call WaitForExit and then the using statement will close.
                     exeProcess.WaitForExit();
                 }
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 tbMainText("Error: Unknown Error when opening the Editor.");
             }
         }
-        private void CancelSearch() {
-            if (searchInProgress) { /* cancel ongoing search */
+        private void CancelSearch()
+        {
+            if (searchInProgress)
+            { /* cancel ongoing search */
                 cancelSearch = true;
-                for (int i = 0; i < threads; i++) {
+                for (int i = 0; i < threads; i++)
+                {
                     if (cancelSearchArr[i] != null)
                         cancelSearchArr[i].Cancel();
                 }
             }
         }
-        private async void OpenEditorAsync(ProcessStartInfo startInfo) {
+        private async void OpenEditorAsync(ProcessStartInfo startInfo)
+        {
             await Task.Run(() => OpenEditor(startInfo));
         }
-        private void ParseFiles(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch) {
+
+
+        internal async void StartMultiSearch(string searchString, string filePattern)
+        {            
+            tmpOptions = this.options;
+            if (!searchInProgress)
+            {
+                if (filePattern.Equals("")) filePattern = "*";
+                cancelSearch = false;
+                for (int i = 0; i < threads; i++) cancelSearchArr[i] = new CancellationTokenSource();
+                searchInProgress = true;
+                tbMainText("Searching for <" + searchString + ">\n");
+                await Task.Run(() => SetupMultiSearchAnyThreads(searchString, filePattern));
+            }
+            else
+            {
+                CancelSearch();
+                while (searchInProgress) ; /* wait until search has stopped */
+                if (filePattern.Equals("")) filePattern = "*";
+                cancelSearch = false;
+                for (int i = 0; i < threads; i++) cancelSearchArr[i] = new CancellationTokenSource();
+                searchInProgress = true;
+                tbMainText("");
+                await Task.Run(() => SetupMultiSearchAnyThreads(searchString, filePattern));
+            }
+        }        
+        private async void SetupMultiSearchAnyThreads(string searchString, string filePattern)
+        { // this method sets up and handles parallel searchthread execution
+        #region Variables
+            bool unrecognizedRegExFormat = false;
+            int start = 0;
+            counter = 0;
+            fileCounter = 0;
+            int charIndex = 0;
+            char searchChar = (char)0;
+            long startTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+            Action action = () => { progressBar.IsIndeterminate = true; /* start animation */ };
+            Dispatcher.Invoke(action);
+            files = new List<string>(); // create an Array of search Files filtered by search pattern
+            List<string> tmpSearchPaths = new List<string>(); tmpSearchPaths = this.searchPaths; // create a temporary copy of the working data while the search is ongoing.
+            List<string> tmpExtensions = new List<string>(); tmpExtensions = this.extensions;
+            int numberOfStrings = searchString.Split('\n').Length;
+            searchResults = new string[numberOfStrings];
+            threadInProgress = new bool[numberOfStrings];
+        #endregion
+        restart_multi_loop:
+            #region File filtering
+            foreach (string s in tmpSearchPaths)
+            {
+                string[] tmpFiles = null;
+                try
+                {
+                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchSubDirectories))
+                        tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.AllDirectories);
+                    else
+                        tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.TopDirectoryOnly);
+                }
+                catch (DirectoryNotFoundException dnfe)
+                {
+                    Console.Error.WriteLine("Error: Search path not found.");
+                    tbMainText("Error: Search path not found.");
+                    action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
+                    Dispatcher.Invoke(action);
+                    searchInProgress = false;
+                    return;
+                }
+                catch (InvalidOperationException ioe)
+                {
+                    Console.Error.WriteLine("Error: Filepattern invalid.");
+                    tbMainText("Error: Filepattern invalid.");
+                    action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
+                    Dispatcher.Invoke(action);
+                    searchInProgress = false;
+                    return;
+                }
+                catch (ArgumentException ae)
+                {
+                    Console.Error.WriteLine("Error: Filepattern invalid.");
+                    tbMainText("Error: Filepattern invalid.");
+                    action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
+                    Dispatcher.Invoke(action);
+                    searchInProgress = false;
+                    return;
+                }
+                catch (UnauthorizedAccessException uae)
+                {
+                    tmpSearchPaths.Remove(s);
+                    try
+                    {
+                        foreach (string d in Directory.GetDirectories(s, "*", SearchOption.TopDirectoryOnly))
+                            tmpSearchPaths.Add(d);
+                    }
+                    catch (Exception e)
+                    {
+                    }
+                    goto restart_multi_loop;
+                }
+                if (tmpExtensions[0].Equals("*"))
+                    for (int i = 0; i < tmpFiles.Length; i++)
+                        files.Add(tmpFiles[i].ToLower()); /* do not filter files, just add them as is */
+                else
+                {
+                    for (int i = 0; i < tmpFiles.Length; i++)
+                    {
+                        string fileToLower = tmpFiles[i].ToLower();
+                        foreach (string ext in tmpExtensions)
+                        {
+                            if (fileToLower.EndsWith("." + ext.ToLower()))
+                                files.Add(tmpFiles[i]);
+                        }
+                    }
+                }
+            }
+            #endregion
+            #region Option and search algorithm selection            
+            string[] splittedStrings = searchString.Split("\r\n");
+            int optionId = 0; /* selector */
+            List<Option> oList = tmpOptions.GetList();
+            for (int i = 0; i < 4; i++)
+            { /* first 4 options are the radio buttons to specifiy the RegEx mode */
+                if (oList[i].GetValue() == true)
+                    optionId = i;
+            }
+            switch (optionId)
+            {
+                case (int)Options.AvailableOptions.Default:
+                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                    {
+                        for (int i = 0; i < numberOfStrings; i++)
+                        { // create multiple searchthreads
+                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
+                            searchChar = ((string)splittedStrings[i])[charIndex];                         
+                            int id = i;
+                            threadInProgress[id] = true;
+                            try
+                            {
+                                await Task.Run(() => ParseFiles(files.ToArray(), splittedStrings[i], searchChar, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                            }
+                            catch (OperationCanceledException e) { break; }
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < numberOfStrings; i++)
+                        { // create multiple searchthreads
+                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
+                            searchChar = ((string)splittedStrings[i])[charIndex];                        
+                            char searchCh = Char.ToLower(searchChar);
+                            string searchStr = (string)searchString.ToLower();
+                            int id = i;
+                            threadInProgress[id] = true;
+                            try
+                            {
+                                await Task.Run(() => ParseFilesCaseInsensitive(files.ToArray(), splittedStrings[i].ToLower(), searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                            }
+                            catch (OperationCanceledException e) { break; }
+                        }
+                    }
+                    break;
+                case (int)Options.AvailableOptions.WholeWordsOnly:
+                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                    {
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
+                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
+                            searchChar = ((string)splittedStrings[i])[charIndex];                        
+                            int id = i;
+                            threadInProgress[id] = true;
+                            try
+                            {
+                                await Task.Run(() => ParseFilesWholeWordsOnly(files.ToArray(), splittedStrings[i], Char.ToLower(searchChar), charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                            }
+                            catch (OperationCanceledException e) { break; }
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < numberOfStrings; i++)
+                        { // create multiple searchthreads
+                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
+                            searchChar = ((string)splittedStrings[i])[charIndex];                           
+                            char searchCh = Char.ToLower(searchChar);
+                            string searchStr = (string)splittedStrings[i].ToLower();
+                            int id = i;
+                            threadInProgress[id] = true;
+                            try
+                            {
+                                await Task.Run(() => ParseFilesCaseInsensitiveWholeWordsOnly(files.ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                            }
+                            catch (OperationCanceledException e) { break; }
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+            #endregion
+            #region Display search results and cancel if requested
+            if (!unrecognizedRegExFormat)
+            {
+                bool allThreadsCompleted = true;
+                bool[] resultsShown = new bool[threads];
+                for (int i = 0; i < resultsShown.Length; i++) resultsShown[i] = false;
+                action = () => { progressBar.IsIndeterminate = true; /* start animation */ };
+                Dispatcher.Invoke(action);
+                while (allThreadsCompleted)
+                {
+                    if (cancelSearch) break;
+                    allThreadsCompleted = false;
+                    for (int i = 0; i < numberOfStrings; i++)
+                    {
+                        if (!threadInProgress[i])
+                        {
+                        }
+                        else
+                        {
+                            allThreadsCompleted = true;
+                        }
+                    } // busywait until all threads finish 
+                }
+                tbMainText("");
+                List <string> appendedLines = new List<string>();                
+                List <string> tmpFiles = files;
+                for (int i = 0; i < numberOfStrings; i++)
+                { // update UI on completion of all threads
+                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAnyString))
+                        tbMainAppend(searchResults[i]);
+                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAllStrings))
+                    {
+                        string line = "";
+                        StringReader stringReader = null;
+                        try 
+                        {
+                            stringReader = new StringReader(searchResults[i]); // foreach (string s in formattedContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)) alternative
+                        }
+                        catch 
+                        {
+                            if (stringReader != null)
+                                stringReader.Close();
+                            break;
+                        }
+                        while ((line = stringReader.ReadLine()) != null) // read the string line by line
+                        {
+                            Boolean containsAllStrings = true;
+                            for (int j = 0; j < splittedStrings.Length; j++)
+                            {
+                                if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                                {
+                                    if (!line.Contains(splittedStrings[j]))
+                                        containsAllStrings = false;
+                                }
+                                else
+                                {
+                                    if (!line.ToLower().Contains(splittedStrings[j].ToLower()))
+                                        containsAllStrings = false;
+                                }
+                            }
+                            if (containsAllStrings)
+                            {
+                                if (!appendedLines.Contains(line.Split("\t")[0]))
+                                {
+                                    tbMainAppend(line.Split("\t")[0] + "\t" + line.Split("\t")[1] + "\t\n");
+                                    appendedLines.Add(line.Split("\t")[0]);
+                                }
+                            }
+                        }
+                        if (stringReader != null)
+                            stringReader.Close();
+                    }
+                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
+                    {
+                        try
+                        {
+                            tmpFiles.Remove(searchResults[i].Split("\t")[0]);
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+                if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
+                {
+                    if (tmpFiles != null)
+                        foreach (string s in tmpFiles)
+                            tbMainAppend(s + "\t (0)\t\n");
+                }
+                if (cancelSearch)
+                {
+                    tbMainText("Search canceled.");
+                    if (outOfMemory)
+                    {
+                        Console.Error.WriteLine("Error: Out of Memory.");
+                        tbMainText("Error: Out of Memory.");
+                        outOfMemory = false;
+                    }
+                }
+                else
+                {
+                    long endTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAnyString))
+                        tbMainAppend("(" + (endTime - startTime) + "ms): \n<" + searchString + ">\n was found " + counter + " times");
+                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAllStrings))
+                        tbMainAppend("(" + (endTime - startTime) + "ms): \n<" + searchString + ">\n was found in " + appendedLines.Count + " files");
+                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
+                        tbMainAppend("(" + (endTime - startTime) + "ms): \n<" + searchString + ">\n none of the strings was found in " + tmpFiles.Count + " files");
+                }
+                tbMainScrollToEnd();
+                cancelSearch = false;
+            }
+            #endregion
+            action = () => { progressBar.IsIndeterminate = false; /* stop animation */ };
+            Dispatcher.Invoke(action);
+            searchInProgress = false;
+        }
+
+        private void ParseFiles(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        {
             StringWriter stringWriter = new StringWriter();
-            try {
+            try
+            {
                 int charIndexLast = (searchString.Length - charIndex - 1); // number of chars after the charIndex (inside the searchString)
-                foreach (string file in files) {
+                foreach (string file in files)
+                {
                     bool foundInFile = false;
                     FileInfo f = new FileInfo(file);
-                    string text = File.ReadAllText(file);
+
+                    string text;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.IgnoreComments))
+                    {
+                        text = RemoveComments.removeComments(File.ReadAllText(file));
+                    }
+                    else
+                    {
+                        text = File.ReadAllText(file);
+                    }
+
                     int index = 0;
                     index = text.IndexOf(searchChar);
-                    while (index != -1) {
+                    while (index != -1)
+                    {
                         bool found = true;
                         int i = index + charIndexLast;
                         cancelSearch.ThrowIfCancellationRequested();
-                        if (i < text.Length) {
-                            if (index - charIndex >= 0) {
-                                for (int j = searchString.Length - 1; j >= 0; j--) {
-                                    if (searchString[j] == text[i]) {
-                                    } else {
+                        if (i < text.Length)
+                        {
+                            if (index - charIndex >= 0)
+                            {
+                                for (int j = searchString.Length - 1; j >= 0; j--)
+                                {
+                                    if (searchString[j] == text[i])
+                                    {
+                                    }
+                                    else
+                                    {
                                         found = false; // abort on wrong char
                                         break;
                                     }
                                     i--;
                                 }
-                                if (found) {
+                                if (found)
+                                {
                                     counter++;
-                                    if (!foundInFile) {
+                                    if (!foundInFile)
+                                    {
                                         foundInFile = true;
                                         fileCounter++;
                                     }
@@ -551,7 +1011,8 @@ namespace Srch {
                                     if (i != -1)
                                         lineStart = text.LastIndexOf(LanguageConventions.newLine[1], i);
                                     int lineEnd = text.IndexOf(LanguageConventions.newLine[1], index + charIndexLast + 1);
-                                    if (lineStart != -1 && lineEnd != -1) {
+                                    if (lineStart != -1 && lineEnd != -1)
+                                    {
                                         int lineNumber = StringUtil.GetLineNumberFromIndex(text, lineStart + 1);
                                         if (lineNumber == 1)
                                         {
@@ -567,118 +1028,183 @@ namespace Srch {
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + line);
                                         }
-                                    } else if (lineStart == -1 && lineEnd != -1) {
+                                    }
+                                    else if (lineStart == -1 && lineEnd != -1)
+                                    {
                                         string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
                                         if (line.Length > maxTbLineLength)
                                             line = line.Substring(0, maxTbLineLength);
                                         stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
-                                    } else if (lineStart != -1 && lineEnd == -1) {
+                                    }
+                                    else if (lineStart != -1 && lineEnd == -1)
+                                    {
                                         string line = text.Substring(lineStart + 1, text.Length - lineStart - 1).TrimStart();
                                         if (line.Length > maxTbLineLength)
                                             line = line.Substring(0, maxTbLineLength);
                                         stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
-                                    } else {
+                                    }
+                                    else
+                                    {
                                         stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                     }
-                                    if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine)) {
+                                    if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine))
+                                    {
                                         if (lineEnd != -1) /* end of file ? */
                                             index = text.IndexOf(searchChar, lineEnd + 1);
                                         else
                                             break;
-                                    } else {
+                                    }
+                                    else
+                                    {
                                         index = text.IndexOf(searchChar, index + charIndexLast + 1);
                                     }
-                                } else {
+                                }
+                                else
+                                {
                                     index = text.IndexOf(searchChar, index + 1);
                                 }
-                            } else {
+                            }
+                            else
+                            {
                                 index = text.IndexOf(searchChar, index + 1);
                             }
-                        } else {
+                        }
+                        else
+                        {
                             break;
                         }
                     }
                 }
                 searchResults[ThreadId] = stringWriter.ToString();
-            } catch (OperationCanceledException e) {
-            } catch (OutOfMemoryException e) {
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+            catch (OutOfMemoryException e)
+            {
                 this.cancelSearch = true;
                 this.outOfMemory = true;
             }
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesFastRegEx(string[] files, FastRegEx fREx, bool caseSensitive, int ThreadId, CancellationToken cancelSearch) {
+        private void ParseFilesFastRegEx(string[] files, FastRegEx fREx, bool caseSensitive, int ThreadId, CancellationToken cancelSearch)
+        {
             StringWriter stringWriter = new StringWriter();
             RegexOptions regExOpt = RegexOptions.None;
             if (!caseSensitive)
                 regExOpt = RegexOptions.IgnoreCase;
-            try {
-                foreach (string file in files) {
+            try
+            {
+                foreach (string file in files)
+                {
                     bool foundInFile = false;
                     FileInfo f = new FileInfo(file);
                     int linenumber = 0;
                     string line;
-                    StreamReader streamReader = new StreamReader(file);
-                    while ((line = streamReader.ReadLine()) != null) { // Read the file line by line.
+
+                    string text;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.IgnoreComments))
+                    {
+                        text = RemoveComments.removeComments(File.ReadAllText(file));
+                    }
+                    else
+                    {
+                        text = File.ReadAllText(file);
+                    }
+                    StringReader stringReader = new StringReader(text);
+
+                    while ((line = stringReader.ReadLine()) != null)
+                    { // Read the file line by line.
                         linenumber++;
-                        try {
-                            if (fREx.Match(line, regExOpt)) {
+                        try
+                        {
+                            if (fREx.Match(line, regExOpt))
+                            {
                                 counter++;
-                                if (!foundInFile) {
+                                if (!foundInFile)
+                                {
                                     foundInFile = true;
                                     fileCounter++;
                                 }
                                 if (line.Length > maxTbLineLength)
                                     line = line.Substring(0, maxTbLineLength);
-
+                                line = line.TrimStart();
                                 stringWriter.WriteLine(f.FullName + "\t(" + linenumber + ")\t" + line);
                             }
-                        } catch (FormatException e) {
+                        }
+                        catch (FormatException e)
+                        {
                             stringWriter.WriteLine(f.FullName + "\t" + "Error: Unrecognized RegEx format @ Line" + linenumber);
                             break;
                         }
                         cancelSearch.ThrowIfCancellationRequested();
                     }
-                    streamReader.Close();
+                    stringReader.Close();
                 }
                 searchResults[ThreadId] = stringWriter.ToString();
-            } catch (OperationCanceledException e) {
-            } catch (OutOfMemoryException e) {
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+            catch (OutOfMemoryException e)
+            {
                 this.cancelSearch = true;
                 this.outOfMemory = true;
             }
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesCaseInsensitive(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch) {
+        private void ParseFilesCaseInsensitive(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        {
             StringWriter stringWriter = new StringWriter();
-            try {
+            try
+            {
                 int charIndexLast = (searchString.Length - charIndex - 1); // number of chars after the charIndex (inside the searchString)
-                foreach (string file in files) {
+                foreach (string file in files)
+                {
                     bool foundInFile = false;
                     FileInfo f = new FileInfo(file);
-                    string text = File.ReadAllText(file);
+
+                    string text;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.IgnoreComments))
+                    {
+                        text = RemoveComments.removeComments(File.ReadAllText(file));
+                    }
+                    else
+                    {
+                        text = File.ReadAllText(file);
+                    }
+
                     string textToLower = text.ToLower();
                     int index = 0;
                     index = textToLower.IndexOf(searchChar);
-                    while (index != -1) {
+                    while (index != -1)
+                    {
                         bool found = true;
                         int i = index + charIndexLast;
                         cancelSearch.ThrowIfCancellationRequested();
-                        if (i < textToLower.Length) {
-                            if (index - charIndex >= 0) {
-                                for (int j = searchString.Length - 1; j >= 0; j--) {
-                                    if (searchString[j] == textToLower[i]) {
-                                    } else {
+                        if (i < textToLower.Length)
+                        {
+                            if (index - charIndex >= 0)
+                            {
+                                for (int j = searchString.Length - 1; j >= 0; j--)
+                                {
+                                    if (searchString[j] == textToLower[i])
+                                    {
+                                    }
+                                    else
+                                    {
                                         found = false; // abort on wrong char
                                         break;
                                     }
                                     i--;
                                 }
-                                if (found) {
+                                if (found)
+                                {
                                     counter++;
-                                    if (!foundInFile) {
+                                    if (!foundInFile)
+                                    {
                                         foundInFile = true;
                                         fileCounter++;
                                     }
@@ -686,7 +1212,8 @@ namespace Srch {
                                     if (i != -1)
                                         lineStart = textToLower.LastIndexOf(LanguageConventions.newLine[1], i);
                                     int lineEnd = textToLower.IndexOf(LanguageConventions.newLine[1], index + charIndexLast + 1);
-                                    if (lineStart != -1 && lineEnd != -1) {
+                                    if (lineStart != -1 && lineEnd != -1)
+                                    {
                                         int lineNumber = StringUtil.GetLineNumberFromIndex(text, lineStart + 1);
                                         if (lineNumber == 1)
                                         {
@@ -702,111 +1229,157 @@ namespace Srch {
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + lineNumber + ")\t" + line);
                                         }
-                                    } 
-                                    else if (lineStart == -1 && lineEnd != -1) 
+                                    }
+                                    else if (lineStart == -1 && lineEnd != -1)
                                     {
                                         string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
                                         if (line.Length > maxTbLineLength)
                                             line = line.Substring(0, maxTbLineLength);
                                         stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
-                                    } 
-                                    else if (lineStart != -1 && lineEnd == -1) 
+                                    }
+                                    else if (lineStart != -1 && lineEnd == -1)
                                     {
                                         string line = text.Substring(lineStart + 1, textToLower.Length - lineStart - 1).TrimStart();
                                         if (line.Length > maxTbLineLength)
                                             line = line.Substring(0, maxTbLineLength);
                                         stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
-                                    } 
-                                    else 
+                                    }
+                                    else
                                     {
                                         stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                     }
-                                    if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine)) {
+                                    if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine))
+                                    {
                                         if (lineEnd != -1) /* end of file ? */
                                             index = textToLower.IndexOf(searchChar, lineEnd + 1);
                                         else
                                             break;
-                                    } else {
+                                    }
+                                    else
+                                    {
                                         index = textToLower.IndexOf(searchChar, index + charIndexLast + 1);
                                     }
-                                } else {
+                                }
+                                else
+                                {
                                     index = textToLower.IndexOf(searchChar, index + 1);
                                 }
-                            } else {
+                            }
+                            else
+                            {
                                 index = textToLower.IndexOf(searchChar, index + 1);
                             }
-                        } else {
+                        }
+                        else
+                        {
                             break;
                         }
                     }
-                } 
+                }
                 searchResults[ThreadId] = stringWriter.ToString();
-            } catch (OperationCanceledException e) {
-            } catch (OutOfMemoryException e) {
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+            catch (OutOfMemoryException e)
+            {
                 this.cancelSearch = true;
                 this.outOfMemory = true;
             }
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch) {
+        private void ParseFilesWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        {
             StringWriter stringWriter = new StringWriter();
-            try {
+            try
+            {
                 int charIndexLast = (searchString.Length - charIndex - 1); // number of chars after the charIndex (inside the searchString)
-                foreach (string file in files) {
+                foreach (string file in files)
+                {
                     bool foundInFile = false;
                     FileInfo f = new FileInfo(file);
-                    string text = File.ReadAllText(file);
+
+                    string text;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.IgnoreComments))
+                    {
+                        text = RemoveComments.removeComments(File.ReadAllText(file));
+                    }
+                    else
+                    {
+                        text = File.ReadAllText(file);
+                    }
+
                     int index = 0;
                     index = text.IndexOf(searchChar);
-                    while (index != -1) {
+                    while (index != -1)
+                    {
                         bool found = true;
                         int i = index + charIndexLast;
                         cancelSearch.ThrowIfCancellationRequested();
-                        if (i < text.Length) {
-                            if (index - charIndex >= 0) {
-                                for (int j = searchString.Length - 1; j >= 0; j--) {
-                                    if (searchString[j] == text[i]) {
-                                    } else {
+                        if (i < text.Length)
+                        {
+                            if (index - charIndex >= 0)
+                            {
+                                for (int j = searchString.Length - 1; j >= 0; j--)
+                                {
+                                    if (searchString[j] == text[i])
+                                    {
+                                    }
+                                    else
+                                    {
                                         found = false; // abort on wrong char
                                         break;
                                     }
                                     i--;
                                 }
-                                if (found) {
+                                if (found)
+                                {
                                     bool lastCharBlank = false;
                                     bool firstCharBlank = false;
                                     if (index + charIndexLast == text.Length - 1)
                                         lastCharBlank = true;
-                                    if (0 == (index - charIndex)) 
+                                    if (0 == (index - charIndex))
                                         firstCharBlank = true;
-                                    if (!(firstCharBlank && lastCharBlank)) {
-                                        if (firstCharBlank) {
-                                            foreach (char c in LanguageConventions.spaces) {
+                                    if (!(firstCharBlank && lastCharBlank))
+                                    {
+                                        if (firstCharBlank)
+                                        {
+                                            foreach (char c in LanguageConventions.spaces)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                             }
-                                            foreach (char c in LanguageConventions.newLine) {
+                                            foreach (char c in LanguageConventions.newLine)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                             }
-                                        } else if (lastCharBlank) {
-                                            foreach (char c in LanguageConventions.spaces) {
+                                        }
+                                        else if (lastCharBlank)
+                                        {
+                                            foreach (char c in LanguageConventions.spaces)
+                                            {
                                                 if (c == (char)text[index - charIndex - 1])
                                                     firstCharBlank = true;
                                             }
-                                            foreach (char c in LanguageConventions.newLine) {
+                                            foreach (char c in LanguageConventions.newLine)
+                                            {
                                                 if (c == (char)text[index - charIndex - 1])
                                                     firstCharBlank = true;
                                             }
-                                        } else {
-                                            foreach (char c in LanguageConventions.spaces) {
+                                        }
+                                        else
+                                        {
+                                            foreach (char c in LanguageConventions.spaces)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                                 if (c == (char)text[index - charIndex - 1])
                                                     firstCharBlank = true;
                                             }
-                                            foreach (char c in LanguageConventions.newLine) {
+                                            foreach (char c in LanguageConventions.newLine)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                                 if (c == (char)text[index - charIndex - 1])
@@ -814,10 +1387,14 @@ namespace Srch {
                                             }
                                         }
                                     }
-                                    if (!(firstCharBlank && lastCharBlank)) { /* cancel, if not a whole word */
-                                    } else {
+                                    if (!(firstCharBlank && lastCharBlank))
+                                    { /* cancel, if not a whole word */
+                                    }
+                                    else
+                                    {
                                         counter++;
-                                        if (!foundInFile) {
+                                        if (!foundInFile)
+                                        {
                                             foundInFile = true;
                                             fileCounter++;
                                         }
@@ -825,119 +1402,165 @@ namespace Srch {
                                         if (i != -1)
                                             lineStart = text.LastIndexOf(LanguageConventions.newLine[1], i);
                                         int lineEnd = text.IndexOf(LanguageConventions.newLine[1], index + charIndexLast + 1);
-                                        if (lineStart != -1 && lineEnd != -1) 
+                                        if (lineStart != -1 && lineEnd != -1)
                                         {
                                             string line = text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart();
                                             if (line.Length > maxTbLineLength)
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
-                                        } 
-                                        else if (lineStart == -1 && lineEnd != -1) 
+                                        }
+                                        else if (lineStart == -1 && lineEnd != -1)
                                         {
                                             string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
                                             if (line.Length > maxTbLineLength)
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
-                                        } 
-                                        else if (lineStart != -1 && lineEnd == -1) 
+                                        }
+                                        else if (lineStart != -1 && lineEnd == -1)
                                         {
                                             string line = text.Substring(lineStart + 1, text.Length - lineStart - 1).TrimStart();
                                             if (line.Length > maxTbLineLength)
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
-                                        } 
-                                        else 
+                                        }
+                                        else
                                         {
                                             stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                         }
-                                        if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine)) {
+                                        if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine))
+                                        {
                                             if (lineEnd != -1) /* end of file ? */
                                                 index = text.IndexOf(searchChar, lineEnd + 1);
                                             else
                                                 break;
-                                        } else {
+                                        }
+                                        else
+                                        {
                                             index = text.IndexOf(searchChar, index + charIndexLast + 1);
                                         }
                                     }
-                                } else {
+                                }
+                                else
+                                {
                                     index = text.IndexOf(searchChar, index + 1);
                                 }
-                            } else {
+                            }
+                            else
+                            {
                                 index = text.IndexOf(searchChar, index + 1);
                             }
-                        } else {
+                        }
+                        else
+                        {
                             break;
                         }
                     }
                 }
                 searchResults[ThreadId] = stringWriter.ToString();
-            } catch (OperationCanceledException e) {
-            } catch (OutOfMemoryException e) {
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+            catch (OutOfMemoryException e)
+            {
                 this.cancelSearch = true;
                 this.outOfMemory = true;
             }
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesCaseInsensitiveWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch) {
+        private void ParseFilesCaseInsensitiveWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        {
             StringWriter stringWriter = new StringWriter();
-            try {
+            try
+            {
                 int charIndexLast = (searchString.Length - charIndex - 1); // number of chars after the charIndex (inside the searchString)
-                foreach (string file in files) {
+                foreach (string file in files)
+                {
                     bool foundInFile = false;
                     FileInfo f = new FileInfo(file);
-                    string text = File.ReadAllText(file);
+
+                    string text;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.IgnoreComments))
+                    {
+                        text = RemoveComments.removeComments(File.ReadAllText(file));
+                    }
+                    else
+                    {
+                        text = File.ReadAllText(file);
+                    }
+
                     string textToLower = text.ToLower();
                     int index = 0;
                     index = textToLower.IndexOf(searchChar);
-                    while (index != -1) {
+                    while (index != -1)
+                    {
                         bool found = true;
                         int i = index + charIndexLast;
                         cancelSearch.ThrowIfCancellationRequested();
-                        if (i < textToLower.Length) {
-                            if (index - charIndex >= 0) {
-                                for (int j = searchString.Length - 1; j >= 0; j--) {
-                                    if (searchString[j] == textToLower[i]) {
-                                    } else {
+                        if (i < textToLower.Length)
+                        {
+                            if (index - charIndex >= 0)
+                            {
+                                for (int j = searchString.Length - 1; j >= 0; j--)
+                                {
+                                    if (searchString[j] == textToLower[i])
+                                    {
+                                    }
+                                    else
+                                    {
                                         found = false; // abort on wrong char
                                         break;
                                     }
                                     i--;
                                 }
-                                if (found) {
+                                if (found)
+                                {
                                     bool lastCharBlank = false;
                                     bool firstCharBlank = false;
                                     if (index + charIndexLast == text.Length - 1)
                                         lastCharBlank = true;
-                                    if (0 == (index - charIndex)) 
+                                    if (0 == (index - charIndex))
                                         firstCharBlank = true;
-                                    if (!(firstCharBlank && lastCharBlank)) {
-                                        if (firstCharBlank) {
-                                            foreach (char c in LanguageConventions.spaces) {
+                                    if (!(firstCharBlank && lastCharBlank))
+                                    {
+                                        if (firstCharBlank)
+                                        {
+                                            foreach (char c in LanguageConventions.spaces)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                             }
-                                            foreach (char c in LanguageConventions.newLine) {
+                                            foreach (char c in LanguageConventions.newLine)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                             }
-                                        } else if (lastCharBlank) {
-                                            foreach (char c in LanguageConventions.spaces) {
+                                        }
+                                        else if (lastCharBlank)
+                                        {
+                                            foreach (char c in LanguageConventions.spaces)
+                                            {
                                                 if (c == (char)text[index - charIndex - 1])
                                                     firstCharBlank = true;
                                             }
-                                            foreach (char c in LanguageConventions.newLine) {
+                                            foreach (char c in LanguageConventions.newLine)
+                                            {
                                                 if (c == (char)text[index - charIndex - 1])
                                                     firstCharBlank = true;
                                             }
-                                        } else {
-                                            foreach (char c in LanguageConventions.spaces) {
+                                        }
+                                        else
+                                        {
+                                            foreach (char c in LanguageConventions.spaces)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                                 if (c == (char)text[index - charIndex - 1])
                                                     firstCharBlank = true;
                                             }
-                                            foreach (char c in LanguageConventions.newLine) {
+                                            foreach (char c in LanguageConventions.newLine)
+                                            {
                                                 if (c == (char)text[index + charIndexLast + 1])
                                                     lastCharBlank = true;
                                                 if (c == (char)text[index - charIndex - 1])
@@ -945,171 +1568,252 @@ namespace Srch {
                                             }
                                         }
                                     }
-                                    if (!(firstCharBlank && lastCharBlank)) { /* cancel and increment index, if not a whole word was found */
+                                    if (!(firstCharBlank && lastCharBlank))
+                                    { /* cancel and increment index, if not a whole word was found */
                                         index++;
-                                    } else {
+                                    }
+                                    else
+                                    {
                                         counter++;
-                                        if (!foundInFile) {
+                                        if (!foundInFile)
+                                        {
                                             foundInFile = true;
                                             fileCounter++;
                                         }
                                         int lineStart = textToLower.LastIndexOf(LanguageConventions.newLine[1], i);
                                         int lineEnd = textToLower.IndexOf(LanguageConventions.newLine[1], index + charIndexLast + 1);
-                                        if (lineStart != -1 && lineEnd != -1) 
+                                        if (lineStart != -1 && lineEnd != -1)
                                         {
                                             string line = text.Substring(lineStart + 1, lineEnd - 1 - lineStart - 1).TrimStart();
                                             if (line.Length > maxTbLineLength)
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
-                                        } 
-                                        else if (lineStart == -1 && lineEnd != -1) 
+                                        }
+                                        else if (lineStart == -1 && lineEnd != -1)
                                         {
                                             string line = text.Substring(0, lineEnd - 1 - lineStart - 1).TrimStart();
                                             if (line.Length > maxTbLineLength)
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart) + ")\t" + line);
-                                        } 
-                                        else if (lineStart != -1 && lineEnd == -1) 
+                                        }
+                                        else if (lineStart != -1 && lineEnd == -1)
                                         {
                                             string line = text.Substring(lineStart + 1, textToLower.Length - lineStart - 1).TrimStart();
                                             if (line.Length > maxTbLineLength)
                                                 line = line.Substring(0, maxTbLineLength);
                                             stringWriter.WriteLine(f.FullName + "\t(" + StringUtil.GetLineNumberFromIndex(text, lineStart + 1) + ")\t" + line);
-                                        } else {
+                                        }
+                                        else
+                                        {
                                             stringWriter.WriteLine(f.FullName + "\t" + "Error @ Index" + index);
                                         }
-                                        if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine)) {
+                                        if (tmpOptions.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine))
+                                        {
                                             if (lineEnd != -1) /* end of file ? */
                                                 index = textToLower.IndexOf(searchChar, lineEnd + 1);
                                             else
                                                 break;
-                                        } else {
+                                        }
+                                        else
+                                        {
                                             index = textToLower.IndexOf(searchChar, index + charIndexLast + 1);
                                         }
                                     }
-                                } else {
+                                }
+                                else
+                                {
                                     index = textToLower.IndexOf(searchChar, index + 1);
                                 }
-                            } else {
+                            }
+                            else
+                            {
                                 index = textToLower.IndexOf(searchChar, index + 1);
                             }
-                        } else {
+                        }
+                        else
+                        {
                             break;
                         }
                     }
                 }
                 searchResults[ThreadId] = stringWriter.ToString();
-            } catch (OperationCanceledException e) {
-            } catch (OutOfMemoryException e) {
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+            catch (OutOfMemoryException e)
+            {
                 this.cancelSearch = true;
                 this.outOfMemory = true;
             }
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesRegEx(string[] files, string searchString, bool caseSensitive, int ThreadId, CancellationToken cancelSearch) {
+        private void ParseFilesRegEx(string[] files, string searchString, bool caseSensitive, int ThreadId, CancellationToken cancelSearch)
+        {
             StringWriter stringWriter = new StringWriter();
             RegexOptions regExOpt = RegexOptions.None;
             if (!caseSensitive)
                 regExOpt = RegexOptions.IgnoreCase;
-            try {
-                foreach (string file in files) {
+            try
+            {
+                foreach (string file in files)
+                {
                     bool foundInFile = false;
                     FileInfo f = new FileInfo(file);
                     int linenumber = 0;
                     string line;
-                    StreamReader streamReader = new StreamReader(file);
-                    while ((line = streamReader.ReadLine()) != null) { // Read the file line by line.
+
+                    string text;
+                    if (tmpOptions.GetValue(Options.AvailableOptions.IgnoreComments))
+                    {
+                        text = RemoveComments.removeComments(File.ReadAllText(file));
+                    }
+                    else
+                    {
+                        text = File.ReadAllText(file);
+                    }
+                    StringReader stringReader = new StringReader(text);
+
+                    while ((line = stringReader.ReadLine()) != null)
+                    { // Read the file line by line.
                         linenumber++;
-                        try {
+                        try
+                        {
                             Match match = Regex.Match(line, searchString, regExOpt);
-                            if (match.Success) {
+                            if (match.Success)
+                            {
                                 counter++;
-                                if (!foundInFile) {
+                                if (!foundInFile)
+                                {
                                     foundInFile = true;
                                     fileCounter++;
                                 }
                                 if (line.Length > maxTbLineLength)
                                     line = line.Substring(0, maxTbLineLength);
-
+                                line = line.TrimStart();
                                 stringWriter.WriteLine(f.FullName + "\t(" + linenumber + ")\t" + line);
                             }
-                        } catch (Exception e) {
+                        }
+                        catch (Exception e)
+                        {
                             stringWriter.WriteLine(f.FullName + "\t" + "Error: Unrecognized RegEx format @ Line" + linenumber);
                             break;
                         }
                         cancelSearch.ThrowIfCancellationRequested();
                     }
-                    streamReader.Close();
+                    stringReader.Close();
                 }
                 searchResults[ThreadId] = stringWriter.ToString();
-            } catch (OperationCanceledException e) {
-            } catch (OutOfMemoryException e) {
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+            catch (OutOfMemoryException e)
+            {
                 this.cancelSearch = true;
                 this.outOfMemory = true;
             }
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void PrintCurrentSearchPath() {
+        private void PrintCurrentSearchPath()
+        {
             tbMainText("cd \n");
-            for (int i = 0; i < searchPaths.Count; i++) {
+            for (int i = 0; i < searchPaths.Count; i++)
+            {
                 string s = searchPaths.ElementAt(i);
                 if (Directory.Exists(s))
                     tbMainAppend(s + "\n");
-                else {
+                else
+                {
                     tbMainAppend("Error: Search path not found: " + s + System.Environment.NewLine);
                     searchPaths.RemoveAt(i);
                 }
             }
         }
-        private void OnTbMainPreviewKeyDown(object sender, KeyEventArgs e) {
-            if (e.Key == Key.Home) {
+        private void OnTbMainPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Home)
+            {
                 tbMainScrollToHome();
             }
-            if (e.Key == Key.End) {
+            if (e.Key == Key.End)
+            {
                 tbMainScrollToEnd();
             }
         }
-        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e) {
-            if (e.Key == Key.F && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)) && ((Keyboard.Modifiers & (ModifierKeys.Shift)) == (ModifierKeys.Shift))) {
-                if (searchFilesWindow != null && searchFilesWindow.IsOpened) {
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.F && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)) && ((Keyboard.Modifiers & (ModifierKeys.Shift)) == (ModifierKeys.Shift)))
+            {
+                if (searchFilesWindow != null && searchFilesWindow.IsOpened)
+                {
                     searchFilesWindow.Focus();
                     searchFilesWindow.tbSearchBoxSelectAll();
-                } else {
+                }
+                else
+                {
                     searchFilesWindow = new SearchFilesWindow(this);
                     searchFilesWindow.Show();
                 }
-            } else {
-                if (e.Key == Key.F && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) {
-                    if (searchWindow != null && searchWindow.IsOpened) {
+            }
+            else
+            {
+                if (e.Key == Key.F && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)))
+                {
+                    if (searchWindow != null && searchWindow.IsOpened)
+                    {
                         searchWindow.Focus();
                         searchWindow.tbSearchBoxSelectAll();
-                    } else {
+                    }
+                    else
+                    {
                         searchWindow = new SearchWindow(this);
                         searchWindow.Show();
                     }
                 }
+                else
+                {
+                    if (e.Key == Key.M && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)))
+                    {
+                        if (searchMultilineWindow != null && searchMultilineWindow.IsOpened)
+                        {
+                            searchMultilineWindow.Focus();
+                            searchMultilineWindow.tbSearchBoxSelectAll();
+                        }
+                        else
+                        {
+                            searchMultilineWindow = new SearchMultilineWindow(this);
+                            searchMultilineWindow.Show();
+                        }
+                    }
+                }
             }
-            if (e.Key == Key.S && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) {
+            if (e.Key == Key.S && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)))
+            {
                 settingsWindow = new SettingsWindow(this);
                 settingsWindow.Show();
             }
-            if (e.Key == Key.C && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) {
+            if (e.Key == Key.C && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)))
+            {
                 CancelSearch();
             }
-			if (e.Key == Key.D0 && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) { // Pressing the keys Control+0 resets the fontSize to the one which has been parsed from File earlier
+            if (e.Key == Key.D0 && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)))
+            { // Pressing the keys Control+0 resets the fontSize to the one which has been parsed from File earlier
                 this.fontSize = fontSizeParsedFromFile;
-				tbMainFontSize(this.fontSize);
+                tbMainFontSize(this.fontSize);
                 if (settingsWindow != null)
-                    settingsWindow.SetFontSize(this.fontSize);                
+                    settingsWindow.SetFontSize(this.fontSize);
             }
-            if (Keyboard.IsKeyDown(Key.F10)) { // this is to work around the windows default operation when pressing F10 key, which is to activate the window menu bar
+            if (Keyboard.IsKeyDown(Key.F10))
+            { // this is to work around the windows default operation when pressing F10 key, which is to activate the window menu bar
                 ParseOptions.ParseOptionsFromFile("F10.txt", this);
                 PrintCurrentSearchPath();
                 e.Handled = true;
             }
-            switch (e.Key) {
+            switch (e.Key)
+            {
                 case Key.Home: // && ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))) {
                     tbMainScrollToHome();
                     break;
@@ -1170,33 +1874,43 @@ namespace Srch {
                     break;
             }
         }
-        private void OnSvPreviewKeyDown(object sender, KeyEventArgs e) {
-            if (e.Key == Key.Home) {
+        private void OnSvPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Home)
+            {
                 tbMainScrollToHome();
             }
-            if (e.Key == Key.End) {
+            if (e.Key == Key.End)
+            {
                 tbMainScrollToEnd();
             }
         }
-        private void OnPbPreviewKeyDown(object sender, KeyEventArgs e) {
-            if (e.Key == Key.Home) {
+        private void OnPbPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Home)
+            {
                 tbMainScrollToHome();
             }
-            if (e.Key == Key.End) {
+            if (e.Key == Key.End)
+            {
                 tbMainScrollToEnd();
             }
         }
-        private void OnTbPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) {
+        private void OnTbPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
             PtMouseDown = e.GetPosition(tbMain); // remember mouseclick position
         }
-        private void OnClickMenuItemEditor2(object sender, RoutedEventArgs e) {
+        private void OnClickMenuItemEditor2(object sender, RoutedEventArgs e)
+        {
             Point pt = PtMouseDown;
             pt.X = 0;
             int idx = tbMain.GetCharacterIndexFromPoint(pt, true);
             string path = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[0];
-            if (File.Exists(path)) {
+            if (File.Exists(path))
+            {
                 string sLinenumber = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[1];
-                try { // open the specified Editor and open the file under cursor at the specified line
+                try
+                { // open the specified Editor and open the file under cursor at the specified line
                     int linenumber = int.Parse(sLinenumber.Substring(1, sLinenumber.Length - 2));
                     ProcessStartInfo startInfo = new ProcessStartInfo();
                     startInfo.CreateNoWindow = false;
@@ -1206,12 +1920,15 @@ namespace Srch {
                     string args;
                     int idxFirstDelimiter = editor2.IndexOf(Path.DirectorySeparatorChar);
                     int idxFirstQuote = editor2.IndexOf('\"');
-                    if (idxFirstQuote != -1) { // path in quotes
+                    if (idxFirstQuote != -1)
+                    { // path in quotes
                         int idxSecondQuote = editor2.IndexOf('\"', 1);
                         editor = editor2.Substring(0, idxSecondQuote); // second quote marks the end of path
                         startInfo.FileName = editor + "\"";
                         args = editor2.Substring(editor2.IndexOf(' ', idxSecondQuote)).TrimStart();
-                    } else { // no quotes in path
+                    }
+                    else
+                    { // no quotes in path
                         editor = editor2.Substring(0, editor2.IndexOf(' ', 1));
                         startInfo.FileName = editor;
                         args = editor2.Substring(editor2.IndexOf(' ') + 1).TrimStart();
@@ -1222,19 +1939,24 @@ namespace Srch {
                     startInfo.WindowStyle = ProcessWindowStyle.Hidden;
                     startInfo.Arguments = args;
                     OpenEditorAsync(startInfo);
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     MessageBox.Show("Error when trying to open the Editor\n" + ex.StackTrace);
                 }
             }
         }
-        private void OnClickMenuItemEditor3(object sender, RoutedEventArgs e) {
+        private void OnClickMenuItemEditor3(object sender, RoutedEventArgs e)
+        {
             Point pt = PtMouseDown;
             pt.X = 0;
             int idx = tbMain.GetCharacterIndexFromPoint(pt, true);
             string path = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[0];
-            if (File.Exists(path)) {
+            if (File.Exists(path))
+            {
                 string sLinenumber = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[1];
-                try { // open the specified Editor and open the file under cursor at the specified line
+                try
+                { // open the specified Editor and open the file under cursor at the specified line
                     int linenumber = int.Parse(sLinenumber.Substring(1, sLinenumber.Length - 2));
                     ProcessStartInfo startInfo = new ProcessStartInfo();
                     startInfo.CreateNoWindow = false;
@@ -1244,12 +1966,15 @@ namespace Srch {
                     string args;
                     int idxFirstDelimiter = editor3.IndexOf(Path.DirectorySeparatorChar);
                     int idxFirstQuote = editor3.IndexOf('\"');
-                    if (idxFirstQuote != -1) { // path in quotes
+                    if (idxFirstQuote != -1)
+                    { // path in quotes
                         int idxSecondQuote = editor3.IndexOf('\"', 1);
                         editor = editor3.Substring(0, idxSecondQuote); // second quote marks the end of path
                         startInfo.FileName = editor + "\"";
                         args = editor3.Substring(editor3.IndexOf(' ', idxSecondQuote)).TrimStart();
-                    } else { // no quotes in path
+                    }
+                    else
+                    { // no quotes in path
                         editor = editor3.Substring(0, editor3.IndexOf(' ', 1));
                         startInfo.FileName = editor;
                         args = editor3.Substring(editor3.IndexOf(' ') + 1).TrimStart();
@@ -1260,7 +1985,9 @@ namespace Srch {
                     startInfo.WindowStyle = ProcessWindowStyle.Hidden;
                     startInfo.Arguments = args;
                     OpenEditorAsync(startInfo);
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     MessageBox.Show("Error when trying to open the Editor\n" + ex.StackTrace);
                 }
             }
@@ -1283,44 +2010,57 @@ namespace Srch {
                 }
             }
         }
-        private void OnClickMenuItemOpenFolder(object sender, RoutedEventArgs e) {
+        private void OnClickMenuItemOpenFolder(object sender, RoutedEventArgs e)
+        {
             Point pt = PtMouseDown;
             pt.X = 0;
             int idx = tbMain.GetCharacterIndexFromPoint(pt, true);
             string path = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[0];
-            if (File.Exists(path)) {
-                try { // open the specified Editor and open the file under cursor at the specified line
+            if (File.Exists(path))
+            {
+                try
+                { // open the specified Editor and open the file under cursor at the specified line
                     System.Diagnostics.Process.Start("explorer.exe", string.Format("/select, \"{0}\"", path));
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     MessageBox.Show("Error when trying to open the Editor\n" + ex.StackTrace);
                 }
             }
         }
-        private void OnClickMenuSearchInFile(object sender, RoutedEventArgs e) {
+        private void OnClickMenuSearchInFile(object sender, RoutedEventArgs e)
+        {
             Point pt = PtMouseDown;
             pt.X = 0;
             int idx = tbMain.GetCharacterIndexFromPoint(pt, true);
             string path = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[0];
             FileInfo f = new FileInfo(path);
-            if (File.Exists(f.FullName)) {
-                if (searchWindow != null && searchWindow.IsOpened) {
+            if (File.Exists(f.FullName))
+            {
+                if (searchWindow != null && searchWindow.IsOpened)
+                {
                     searchWindow.Focus();
                     searchWindow.tbSearchBoxSelectAll();
                     searchWindow.tbFilePattern.Text = f.Name;
-                } else {
+                }
+                else
+                {
                     searchWindow = new SearchWindow(this, f.Name);
                     searchWindow.Show();
                 }
             }
         }
-        private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e) {
+        private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
             Point pt = e.MouseDevice.GetPosition(tbMain);
             pt.X = 0;
             int idx = tbMain.GetCharacterIndexFromPoint(pt, true);
             string path = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[0];
-            if (File.Exists(path)) {
+            if (File.Exists(path))
+            {
                 string sLinenumber = tbMain.GetLineText(tbMain.GetLineIndexFromCharacterIndex(idx)).Split('\t')[1];
-                try { // open the specified Editor and open the file under cursor at the specified line
+                try
+                { // open the specified Editor and open the file under cursor at the specified line
                     int linenumber = int.Parse(sLinenumber.Substring(1, sLinenumber.Length - 2));
                     ProcessStartInfo startInfo = new ProcessStartInfo();
                     startInfo.CreateNoWindow = false;
@@ -1330,12 +2070,15 @@ namespace Srch {
                     string args;
                     int idxFirstDelimiter = editor1.IndexOf(Path.DirectorySeparatorChar);
                     int idxFirstQuote = editor1.IndexOf('\"');
-                    if (idxFirstQuote != -1) { // path in quotes
-                            int idxSecondQuote = editor1.IndexOf('\"', 1);
-                            editor = editor1.Substring(0, idxSecondQuote); // second quote marks the end of path
-                            startInfo.FileName = editor + "\"";
-                            args = editor1.Substring(editor1.IndexOf(' ', idxSecondQuote)).TrimStart();
-                    } else { // no quotes in path
+                    if (idxFirstQuote != -1)
+                    { // path in quotes
+                        int idxSecondQuote = editor1.IndexOf('\"', 1);
+                        editor = editor1.Substring(0, idxSecondQuote); // second quote marks the end of path
+                        startInfo.FileName = editor + "\"";
+                        args = editor1.Substring(editor1.IndexOf(' ', idxSecondQuote)).TrimStart();
+                    }
+                    else
+                    { // no quotes in path
                         editor = editor1.Substring(0, editor1.IndexOf(' ', 1));
                         startInfo.FileName = editor;
                         args = editor1.Substring(editor1.IndexOf(' ') + 1).TrimStart();
@@ -1346,20 +2089,27 @@ namespace Srch {
                     startInfo.WindowStyle = ProcessWindowStyle.Hidden;
                     startInfo.Arguments = args;
                     OpenEditorAsync(startInfo);
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     MessageBox.Show("Error when trying to open the Editor\n" + ex.StackTrace);
                 }
             }
         }
-        private void OnMouseWheel(object sender, MouseWheelEventArgs e) {
-            if ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control)) {
-                if (e.Delta > 0) {
+        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if ((Keyboard.Modifiers & (ModifierKeys.Control)) == (ModifierKeys.Control))
+            {
+                if (e.Delta > 0)
+                {
                     this.fontSize++;
                     if (fontSize > 48)
                         this.fontSize = 48;
-                } else {
+                }
+                else
+                {
                     this.fontSize--;
-                    if (fontSize < 1) 
+                    if (fontSize < 1)
                         this.fontSize = 1;
                 }
                 tbMainFontSize(this.fontSize);
@@ -1368,38 +2118,52 @@ namespace Srch {
                 e.Handled = true;
             }
         }
-        private void OnDragOver(object sender, DragEventArgs e) {
+        private void OnDragOver(object sender, DragEventArgs e)
+        {
             e.Handled = true;
         }
-        private void OnDragDrop(object sender, DragEventArgs e) {
+        private void OnDragDrop(object sender, DragEventArgs e)
+        {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
             searchPaths.Clear();
-            foreach (string s in files) {
-                searchPaths.Add(s);
+            if (files != null)
+            {
+                foreach (string s in files)
+                {
+                    searchPaths.Add(s);
+                }
+                if (settingsWindow != null && settingsWindow.IsOpened)
+                {
+                    settingsWindow.lbSearchPaths_Add(searchPaths);
+                }
+                if (searchPaths != null)
+                    PrintCurrentSearchPath();
             }
-            if (settingsWindow != null && settingsWindow.IsOpened) {
-                settingsWindow.lbSearchPaths_Add(searchPaths);
-            }
-            if (searchPaths != null)
-                PrintCurrentSearchPath();
             e.Effects = DragDropEffects.Copy;
         }
-        private void OnWindowClosing(object sender, CancelEventArgs e) {
+        private void OnWindowClosing(object sender, CancelEventArgs e)
+        {
         }
-        private void OnSizeChanged(object sender, EventArgs e) {
+        private void OnSizeChanged(object sender, EventArgs e)
+        {
         }
-        private void OnStateChanged(object sender, EventArgs e) {
+        private void OnStateChanged(object sender, EventArgs e)
+        {
         }
-        private void tbMainAppend(string s) {
+        private void tbMainAppend(string s)
+        {
             Action action = () => { tbMain.AppendText(s); };
             Dispatcher.Invoke(action);
         }
-        private void tbMainText(string s) {
+        private void tbMainText(string s)
+        {
             Action action = () => { tbMain.Text = s; };
             Dispatcher.Invoke(action);
         }
-        private void tbMainScrollToEnd() {
-            Action action = () => {
+        private void tbMainScrollToEnd()
+        {
+            Action action = () =>
+            {
                 tbMain.Select(0, 0);
                 tbMain.Focus();
                 tbMain.SelectionStart = tbMain.Text.Length;
@@ -1407,22 +2171,28 @@ namespace Srch {
             };
             Dispatcher.Invoke(action);
         }
-        private void tbMainScrollUp() {
-            Action action = () => {
+        private void tbMainScrollUp()
+        {
+            Action action = () =>
+            {
                 tbMain.Focus();
                 tbMain.ScrollToVerticalOffset(tbMain.VerticalOffset - 65);
             };
             Dispatcher.Invoke(action);
         }
-        private void tbMainScrollDown() {
-            Action action = () => {
+        private void tbMainScrollDown()
+        {
+            Action action = () =>
+            {
                 tbMain.Focus();
                 tbMain.ScrollToVerticalOffset(tbMain.VerticalOffset + 65);
             };
             Dispatcher.Invoke(action);
         }
-        private void tbMainScrollToHome() {
-            Action action = () => {
+        private void tbMainScrollToHome()
+        {
+            Action action = () =>
+            {
                 tbMain.Focus();
                 if (tbMain.Text.Length > 0)
                     tbMain.SelectionStart = tbMain.Text.ElementAt(0);
@@ -1431,7 +2201,8 @@ namespace Srch {
             };
             Dispatcher.Invoke(action);
         }
-        internal void tbMainFontSize(int size) {
+        internal void tbMainFontSize(int size)
+        {
             Action action = () => { tbMain.FontSize = size; };
             Dispatcher.Invoke(action);
         }

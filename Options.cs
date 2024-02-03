@@ -17,8 +17,13 @@ namespace Srch
         internal Option SearchSubDirectories;
         internal Option SearchFilesSubDirectories;
         internal Option SearchFilesRegEx;
+        internal Option SearchMultiAllStrings;
+        internal Option SearchMultiAnyString;
+        internal Option SearchMultiNoneOfStrings;
+        internal Option IgnoreComments;
         internal List<Option> list;
-        internal enum AvailableOptions {
+        internal enum AvailableOptions
+        {
             Default = 0,
             WholeWordsOnly = 1,
             FastRegEx = 2,
@@ -26,9 +31,14 @@ namespace Srch
             CaseSensitive = 4,
             OnlyShow1EntryPerLine = 5,
             SearchSubDirectories = 6,
-            SearchFilesSubDirectories = 7
+            SearchFilesSubDirectories = 7,
+            SearchMultiAllStrings = 8,
+            SearchMultiAnyString = 9,
+            SearchMultiNoneOfStrings = 10,
+            IgnoreComments = 11
         };
-        public Options() { // Constructor
+        public Options()
+        { // Constructor
             list = new List<Option>();
             caseSensitive = new Option(false, "CaseSensitive", (int)AvailableOptions.CaseSensitive);
             wholeWordsOnly = new Option(false, "WholeWordsOnly", (int)AvailableOptions.WholeWordsOnly);
@@ -38,6 +48,10 @@ namespace Srch
             onlyShow1EntryPerLine = new Option(false, "OnlyShow1EntryPerLine", (int)AvailableOptions.OnlyShow1EntryPerLine);
             SearchSubDirectories = new Option(false, "SearchSubDirectories", (int)AvailableOptions.SearchSubDirectories);
             SearchFilesSubDirectories = new Option(false, "SearchFilesSubDirectories", (int)AvailableOptions.SearchFilesSubDirectories);
+            SearchMultiAllStrings = new Option(false, "SearchMultiAllStrings", (int)AvailableOptions.SearchMultiAllStrings);
+            SearchMultiAnyString = new Option(false, "SearchMultiAnyString", (int)AvailableOptions.SearchMultiAnyString);
+            SearchMultiNoneOfStrings = new Option(false, "SearchMultiNoneOfStrings", (int)AvailableOptions.SearchMultiNoneOfStrings);
+            IgnoreComments = new Option(false, "IgnoreComments", (int)AvailableOptions.IgnoreComments);
             list.Add(Default);
             list.Add(wholeWordsOnly);
             list.Add(SimpleRegEx);
@@ -46,61 +60,82 @@ namespace Srch
             list.Add(onlyShow1EntryPerLine);
             list.Add(SearchSubDirectories);
             list.Add(SearchFilesSubDirectories);
+            list.Add(SearchMultiAllStrings);
+            list.Add(SearchMultiAnyString);
+            list.Add(SearchMultiNoneOfStrings);
+            list.Add(IgnoreComments);
         }
         #region GettersSetters
-        public void SetValue(AvailableOptions optionId, bool value) {
-            foreach (Option o in list) {
-                if (o.GetId() == (int)optionId) {
+        public void SetValue(AvailableOptions optionId, bool value)
+        {
+            foreach (Option o in list)
+            {
+                if (o.GetId() == (int)optionId)
+                {
                     o.SetValue(value);
                     break;
                 }
             }
         }
-        public void SetValue(int optionId, bool value) {
-            foreach (Option o in list) {
-                if (o.GetId() == optionId) {
+        public void SetValue(int optionId, bool value)
+        {
+            foreach (Option o in list)
+            {
+                if (o.GetId() == optionId)
+                {
                     o.SetValue(value);
                     break;
                 }
             }
         }
-        public bool GetValue(AvailableOptions id) {
+        public bool GetValue(AvailableOptions id)
+        {
             bool value = false;
-            foreach (Option o in list) {
-                if (o.GetId() == (int)id) {
+            foreach (Option o in list)
+            {
+                if (o.GetId() == (int)id)
+                {
                     value = o.GetValue();
                     break;
                 }
             }
             return value;
         }
-        public List<Option> GetList() {
+        public List<Option> GetList()
+        {
             return list;
         }
         #endregion
     }
-    public class Option : IComparable<Option> {
+    public class Option : IComparable<Option>
+    {
         private string name;
         private bool value;
         private int id;
-        public Option(bool value, string name, int id) { // Constructor
+        public Option(bool value, string name, int id)
+        { // Constructor
             this.name = name;
             this.value = value;
             this.id = id;
         }
-        override public string ToString() {
+        override public string ToString()
+        {
             return name;
         }
-        public bool GetValue() {
+        public bool GetValue()
+        {
             return value;
         }
-        public void SetValue(bool value) {
+        public void SetValue(bool value)
+        {
             this.value = value;
         }
-        public int GetId() {
+        public int GetId()
+        {
             return id;
         }
-        public int CompareTo(Option that) {
+        public int CompareTo(Option that)
+        {
             if (this.id > that.id) return -1;
             if (this.id == that.id) return 0;
             return 1;

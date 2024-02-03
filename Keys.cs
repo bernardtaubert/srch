@@ -9,7 +9,8 @@ namespace Srch
 {
     static class Keys // used for Keyboard Emulation
     {
-        enum KeyModifier { // not used
+        enum KeyModifier
+        { // not used
             None = 0,
             Alt = 1,
             Control = 2,
@@ -23,16 +24,19 @@ namespace Srch
             int cbSize);
         // Declare the INPUT struct
         [StructLayout(LayoutKind.Sequential)]
-        public struct INPUT {
+        public struct INPUT
+        {
             internal uint type;
             internal InputUnion U;
-            internal static int Size {
+            internal static int Size
+            {
                 get { return Marshal.SizeOf(typeof(INPUT)); }
             }
         }
         // Declare the InputUnion struct
         [StructLayout(LayoutKind.Explicit)]
-        internal struct InputUnion {
+        internal struct InputUnion
+        {
             [FieldOffset(0)]
             internal MOUSEINPUT mi;
             [FieldOffset(0)]
@@ -41,7 +45,8 @@ namespace Srch
             internal HARDWAREINPUT hi;
         }
         [StructLayout(LayoutKind.Sequential)]
-        internal struct MOUSEINPUT {
+        internal struct MOUSEINPUT
+        {
             internal int dx;
             internal int dy;
             internal MouseEventDataXButtons mouseData;
@@ -50,13 +55,15 @@ namespace Srch
             internal UIntPtr dwExtraInfo;
         }
         [Flags]
-        internal enum MouseEventDataXButtons : uint {
+        internal enum MouseEventDataXButtons : uint
+        {
             Nothing = 0x00000000,
             XBUTTON1 = 0x00000001,
             XBUTTON2 = 0x00000002
         }
         [Flags]
-        internal enum MOUSEEVENTF : uint {
+        internal enum MOUSEEVENTF : uint
+        {
             ABSOLUTE = 0x8000,
             HWHEEL = 0x01000,
             MOVE = 0x0001,
@@ -73,7 +80,8 @@ namespace Srch
             XUP = 0x0100
         }
         [StructLayout(LayoutKind.Sequential)]
-        internal struct KEYBDINPUT {
+        internal struct KEYBDINPUT
+        {
             internal VirtualKeyShort wVk;
             internal ScanCodeShort wScan;
             internal KEYEVENTF dwFlags;
@@ -82,13 +90,15 @@ namespace Srch
         }
 
         [Flags]
-        internal enum KEYEVENTF : uint {
+        internal enum KEYEVENTF : uint
+        {
             EXTENDEDKEY = 0x0001,
             KEYUP = 0x0002,
             SCANCODE = 0x0008,
             UNICODE = 0x0004
         }
-        internal enum VirtualKeyShort : short {
+        internal enum VirtualKeyShort : short
+        {
             ///<summary>
             ///Left mouse button
             ///</summary>
@@ -780,7 +790,8 @@ namespace Srch
             ///</summary>
             OEM_CLEAR = 0xFE
         }
-        internal enum ScanCodeShort : short {
+        internal enum ScanCodeShort : short
+        {
             LBUTTON = 0,
             RBUTTON = 0,
             CANCEL = 70,
@@ -958,10 +969,11 @@ namespace Srch
         /// Define HARDWAREINPUT struct
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        internal struct HARDWAREINPUT {
+        internal struct HARDWAREINPUT
+        {
             internal int uMsg;
             internal short wParamL;
             internal short wParamH;
-        }   
+        }
     }
 }

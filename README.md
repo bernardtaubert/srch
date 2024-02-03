@@ -22,6 +22,7 @@ Run srch.exe and drag & drop a folder you want to search.
 - CTRL + Shift + F<pre>Search files</pre>
 - CTRL + C<pre>Cancel search</pre>
 - CTRL + S<pre>Settings</pre>
+- CTRL + M<pre>Multistring search</pre>
 - CTRL + ENTER<pre>Search selected text (global hotkey)</pre>
 - F1 to F12<pre>Load options from files</pre>
 
@@ -34,15 +35,13 @@ Edit the .txt files in the root folder to specify the default search path.
 
 ## Known Bugs
 
-- When specifying the Editors, arguments must not be in quotes.
 - Hotkeys only work in the first instance, other registrations fail.
 - Window does not redraw occasionally.
-- The source has to be cleaned up and reformatted.
 
 ## Usability improvements
 
-- Implement a more intuitive color picker.
 - Highlight the searchstring in the results (a switch to richtext is needed).
+- Implement a more intuitive color picker.
 
 ## Compiling
 

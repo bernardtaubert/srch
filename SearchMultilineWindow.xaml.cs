@@ -17,19 +17,19 @@ using System.Windows.Shapes;
 namespace Srch
 {
     /// <summary>
-    /// Interaction logic for SearchWindow.xaml
+    /// Interaction logic for SearchMultilineWindow.xaml
     /// </summary>
-    public partial class SearchWindow : Window
+    public partial class SearchMultilineWindow : Window
     {
         MainWindow mainWindow;
         public bool IsOpened = false;
         private bool show1EntryPerLineState;
         private bool ignoreComments;
-        public SearchWindow(MainWindow mainWindow)
+        public SearchMultilineWindow(MainWindow mainWindow)
         {
             InitializeWindow(mainWindow);
         }
-        public SearchWindow(MainWindow mainWindow, string filename)
+        public SearchMultilineWindow(MainWindow mainWindow, string filename)
         {
             InitializeWindow(mainWindow);
             tbFilePattern.Text = filename;
@@ -40,29 +40,31 @@ namespace Srch
             this.mainWindow = mainWindow;
             cbCaseSensitive.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.CaseSensitive);
             rbWholeWordsOnly.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.WholeWordsOnly);
-            rbNETRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.NETRegEx);
-            rbFastRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.FastRegEx);
-            if (((bool)rbNETRegEx.IsChecked || (bool)rbFastRegEx.IsChecked))
+            //rbNETRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.NETRegEx);
+            //rbFastRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.FastRegEx);
+            rbMultiAll.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchMultiAllStrings);
+            rbMultiAny.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchMultiAnyString);
+            rbMultiNone.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings);
+            rbDefault.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.Default);
+            if ((bool)rbMultiAll.IsChecked || (bool)rbMultiNone.IsChecked)
             {
-                show1EntryPerLineState = true;
-                cbOnlyShow1EntryPerLine.IsChecked = true;
+                rbWholeWordsOnly.IsChecked = false;
+                rbWholeWordsOnly.IsEnabled = false;
+                rbDefault.IsChecked = true;
             }
             else
-            {
-                cbOnlyShow1EntryPerLine.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine);
-                show1EntryPerLineState = (bool)cbOnlyShow1EntryPerLine.IsChecked;
-            }
+                rbWholeWordsOnly.IsEnabled = true;
             cbIgnoreComments.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.IgnoreComments);
-            rbFastRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.FastRegEx);
-            rbDefault.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.Default);
+            cbOnlyShow1EntryPerLine.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine);
+            //rbFastRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.FastRegEx);
             cbSearchSubDirectories.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchSubDirectories);
-            if (mainWindow.searchHistory.Count > 10)
+            if (mainWindow.searchMultilineHistory.Count > 10)
             {
-                mainWindow.searchHistory.Dequeue();
+                mainWindow.searchMultilineHistory.Dequeue();
             }
-            for (int i = mainWindow.searchHistory.Count - 1; i >= 0; i--)
+            for (int i = mainWindow.searchMultilineHistory.Count - 1; i >= 0; i--)
             {
-                cbSearchBox.Items.Add(mainWindow.searchHistory.ElementAt(i));
+                cbSearchBox.Items.Add(mainWindow.searchMultilineHistory.ElementAt(i));
             }
             tbSearchBox.Text = mainWindow.searchString;
             tbFilePattern.Text = mainWindow.fileFilter;
@@ -97,7 +99,7 @@ namespace Srch
         }
         private async void OnWindowKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (e.Key == Key.Enter && !((Keyboard.Modifiers & (ModifierKeys.Shift)) == (ModifierKeys.Shift)))
             {
                 string searchString = null;
                 string filePattern = null;
@@ -106,32 +108,32 @@ namespace Srch
                 {
                     mainWindow.searchString = searchString;
                     this.Close();
-                    await Task.Run(() => mainWindow.StartSearch(searchString, filePattern));
+                    await Task.Run(() => mainWindow.StartMultiSearch(searchString, filePattern));
                 }
-                if (!mainWindow.searchHistory.Contains(searchString))
+                if (!mainWindow.searchMultilineHistory.Contains(searchString))
                 {
-                    mainWindow.searchHistory.Enqueue(searchString);
-                    if (mainWindow.searchHistory.Count > 10)
+                    mainWindow.searchMultilineHistory.Enqueue(searchString);
+                    if (mainWindow.searchMultilineHistory.Count > 10)
                     {
-                        mainWindow.searchHistory.Dequeue();
+                        mainWindow.searchMultilineHistory.Dequeue();
                     }
                 }
                 else
                 {
-                    Queue<string> tmpSearchHistory = new Queue<string>();
-                    for (int i = 0; i < mainWindow.searchHistory.Count; i++)
+                    Queue<string> tmpsearchMultilineHistory = new Queue<string>();
+                    for (int i = 0; i < mainWindow.searchMultilineHistory.Count; i++)
                     {
-                        if (mainWindow.searchHistory.ElementAt(i).Equals(searchString))
+                        if (mainWindow.searchMultilineHistory.ElementAt(i).Equals(searchString))
                         {
                             /* ignore the existing item */
                         }
                         else
                         {
-                            tmpSearchHistory.Enqueue(mainWindow.searchHistory.ElementAt(i)); /* generate the new Queue by iterating over the existing one */
+                            tmpsearchMultilineHistory.Enqueue(mainWindow.searchMultilineHistory.ElementAt(i)); /* generate the new Queue by iterating over the existing one */
                         }
                     }
-                    tmpSearchHistory.Enqueue(searchString); /* enqueue the most recent search string at last */
-                    mainWindow.searchHistory = tmpSearchHistory; /* overwrite history */
+                    tmpsearchMultilineHistory.Enqueue(searchString); /* enqueue the most recent search string at last */
+                    mainWindow.searchMultilineHistory = tmpsearchMultilineHistory; /* overwrite history */
                 }
             }
             if (e.Key == Key.Escape)
@@ -178,23 +180,28 @@ namespace Srch
         }
         private void RadioButton_Checked(object sender, RoutedEventArgs e)
         {
-            mainWindow.options.SetValue(Options.AvailableOptions.NETRegEx, (bool)rbNETRegEx.IsChecked);
+            //mainWindow.options.SetValue(Options.AvailableOptions.NETRegEx, (bool)rbNETRegEx.IsChecked);
             mainWindow.options.SetValue(Options.AvailableOptions.WholeWordsOnly, (bool)rbWholeWordsOnly.IsChecked);
             mainWindow.options.SetValue(Options.AvailableOptions.Default, (bool)rbDefault.IsChecked);
-            mainWindow.options.SetValue(Options.AvailableOptions.FastRegEx, (bool)rbFastRegEx.IsChecked);
-            if ((bool)rbNETRegEx.IsChecked || (bool)rbFastRegEx.IsChecked)
+            //mainWindow.options.SetValue(Options.AvailableOptions.FastRegEx, (bool)rbFastRegEx.IsChecked);
+        }
+        private void MultiRadioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            mainWindow.options.SetValue(Options.AvailableOptions.SearchMultiAllStrings, (bool)rbMultiAll.IsChecked);
+            mainWindow.options.SetValue(Options.AvailableOptions.SearchMultiAnyString, (bool)rbMultiAny.IsChecked);
+            mainWindow.options.SetValue(Options.AvailableOptions.SearchMultiNoneOfStrings, (bool)rbMultiNone.IsChecked);
+            if ((bool)rbMultiAll.IsChecked || (bool)rbMultiNone.IsChecked)
             {
-                this.show1EntryPerLineState = (bool)cbOnlyShow1EntryPerLine.IsChecked;
-                cbOnlyShow1EntryPerLine.IsEnabled = false;
-                cbOnlyShow1EntryPerLine.IsChecked = true;
-                mainWindow.options.SetValue(Options.AvailableOptions.OnlyShow1EntryPerLine, (bool)cbOnlyShow1EntryPerLine.IsChecked);
+                //rbWholeWordsOnly.IsChecked = false;
+                //rbDefault.IsChecked = true;
+                mainWindow.options.SetValue(Options.AvailableOptions.Default, true);
+                mainWindow.options.SetValue(Options.AvailableOptions.WholeWordsOnly, false);
+                rbDefault.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.Default);
+                rbWholeWordsOnly.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.WholeWordsOnly);
+                rbWholeWordsOnly.IsEnabled = false;            
             }
             else
-            {
-                cbOnlyShow1EntryPerLine.IsEnabled = true;
-                cbOnlyShow1EntryPerLine.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine); ;
-                mainWindow.options.SetValue(Options.AvailableOptions.OnlyShow1EntryPerLine, (bool)cbOnlyShow1EntryPerLine.IsChecked);
-            }
+                rbWholeWordsOnly.IsEnabled = true;
         }
     }
 }
