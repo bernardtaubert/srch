@@ -2,6 +2,8 @@
 
 A code searching tool for windows
 
+<img src="Pictures/Srch.png" width="300"/>
+
 ## Features
 
 - Boyer-Moore
