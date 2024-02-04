@@ -2,7 +2,7 @@
 
 A code searching tool for windows
 
-<img src="Pictures/Srch.png" width="500"/>
+<img src="Pictures/srch.png" width="500"/>
 
 ## Features
 
