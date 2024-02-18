@@ -27,6 +27,7 @@ namespace Srch
         Point PtMouseDown = new Point(0, 0);
 
         // Runtime Data
+        internal string workingDirectory;
         internal Options options = null;
         private Options tmpOptions = null; // copy of Options while the search is ongoing
 
@@ -90,8 +91,21 @@ namespace Srch
         {
             InitializeComponent();
             string[] args = Environment.GetCommandLineArgs();
+            workingDirectory = args[0].Remove(args[0].LastIndexOf(Path.DirectorySeparatorChar)); // get path only
             options = new Options(); // search options container
-            ParseOptions.ParseOptionsFromFile("default_options.txt", this);
+            if (File.Exists(workingDirectory Path.DirectorySeparatorChar "default_options.txt")) // check if default_options.txt exists
+                ParseOptions.ParseOptionsFromFile("default_options.txt", this);
+            else
+            {
+                // Use reasonable default options
+                extensions.Clear();
+                extensions.Add("*"); // wildcard found, so do not filter extensions
+                editor1 = "C:\\Apps\\VScode\\Code.exe --goto % path:% linenumber";
+                editor2 = "\"C:\\Apps\\Notepad++\\Notepad++.exe\" \"%path\" - n % linenumber";
+                options.Default.SetValue(true);
+                options.SearchSubDirectories.SetValue (true);
+                options.onlyShow1EntryPerLine.SetValue (true);
+            }
 			searchPaths.Clear();
 			for (int i = 0; i < args.Length; i++)
 				if (i > 0)
