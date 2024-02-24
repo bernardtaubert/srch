@@ -8,6 +8,18 @@
         StateChanged="OnStateChanged"
         Title="Srch" Height="350" Width="525">
     <DockPanel LastChildFill="True">
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Search for text" Click="OnMenuClick_OpenSearchWindow" InputGestureText="Ctrl+F"/>
+                <MenuItem Header="_Search for files by name" Click="OnMenuClick_OpenSearchFilesWindow" InputGestureText="Ctrl+Shift+F"/>
+                <MenuItem Header="_Search for multiple strings" Click="OnMenuClick_OpenMultiSearchWindow" InputGestureText="Ctrl+M"/>
+                <Separator />
+                <MenuItem Header="_Settings" Click="OnMenuClick_OpenSettingsWindow" InputGestureText="Ctrl+S"/>
+                <MenuItem Header="_Cancel search" Click="OnMenuClick_CancelSearch" InputGestureText="Ctrl+C"/>
+                <Separator />
+                <MenuItem Header="_Exit" Click="OnMenuClick_Exit"/>
+            </MenuItem>
+        </Menu>
         <ProgressBar x:Name="progressBar" Height="4" DockPanel.Dock="Bottom" IsIndeterminate="True" PreviewKeyDown="OnPbPreviewKeyDown" Margin="0,0,0.4,0" BorderThickness="0"/>
             <TextBox TextWrapping="NoWrap" Text="" x:Name="tbMain" PreviewKeyDown="OnTbMainPreviewKeyDown" PreviewMouseWheel="OnMouseWheel" PreviewMouseRightButtonDown="OnTbPreviewMouseRightButtonDown" AllowDrop="True" PreviewDragOver="OnDragOver" PreviewDrop="OnDragDrop" RenderTransformOrigin="0.5,1" VerticalAlignment="Stretch" IsReadOnly="True" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" FontSize="10" HorizontalScrollBarVisibility="Auto">
                 <TextBox.ContextMenu>

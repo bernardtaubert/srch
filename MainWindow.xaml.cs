@@ -23,11 +23,11 @@ namespace Srch
     {
         #region Variables
         // Internal
+        internal string workingDirectory;
         public ICommand WindowClosing { get; private set; }
         Point PtMouseDown = new Point(0, 0);
 
         // Runtime Data
-        internal string workingDirectory;
         internal Options options = null;
         private Options tmpOptions = null; // copy of Options while the search is ongoing
 
@@ -93,23 +93,23 @@ namespace Srch
             string[] args = Environment.GetCommandLineArgs();
             workingDirectory = args[0].Remove(args[0].LastIndexOf(Path.DirectorySeparatorChar)); // get path only
             options = new Options(); // search options container
-            if (File.Exists(workingDirectory Path.DirectorySeparatorChar "default_options.txt")) // check if default_options.txt exists
-                ParseOptions.ParseOptionsFromFile("default_options.txt", this);
+            if (File.Exists(workingDirectory + Path.DirectorySeparatorChar + "default_options.txt")) // check if default_options.txt exists
+                ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "default_options.txt", this);
             else
             {
                 // Use reasonable default options
                 extensions.Clear();
                 extensions.Add("*"); // wildcard found, so do not filter extensions
-                editor1 = "C:\\Apps\\VScode\\Code.exe --goto % path:% linenumber";
-                editor2 = "\"C:\\Apps\\Notepad++\\Notepad++.exe\" \"%path\" - n % linenumber";
-                options.Default.SetValue(true);
+                editor1 = "C:\\Apps\\VScode\\Code.exe --goto %path:%linenumber";
+                editor2 = "\"C:\\Apps\\Notepad++\\Notepad++.exe\" \"%path\" -n%linenumber";
+                options.Default.SetValue (true);
                 options.SearchSubDirectories.SetValue (true);
                 options.onlyShow1EntryPerLine.SetValue (true);
-            }
-			searchPaths.Clear();
-			for (int i = 0; i < args.Length; i++)
-				if (i > 0)
-					searchPaths.Add(args[i]); // parse paths from command line
+            }            
+            searchPaths.Clear();
+            for (int i = 0; i < args.Length; i++)
+                if (i > 0)
+                    searchPaths.Add(args[i]); // parse paths from command line
             searchResults = new string[threads];
             sw = new StreamWriter(Console.OpenStandardOutput());
             sw.AutoFlush = true;
@@ -638,6 +638,35 @@ namespace Srch
                 tbMainText("Error: Unknown Error when opening the Editor.");
             }
         }
+
+        private void OnMenuClick_OpenSettingsWindow(object sender, RoutedEventArgs e) {
+            settingsWindow = new SettingsWindow(this);
+            settingsWindow.Show();
+        }
+
+        private void OnMenuClick_OpenSearchWindow(object sender, RoutedEventArgs e) {
+            searchWindow = new SearchWindow(this);
+            searchWindow.Show();
+        }
+
+        private void OnMenuClick_OpenMultiSearchWindow(object sender, RoutedEventArgs e) {
+            searchMultilineWindow = new SearchMultilineWindow(this);
+            searchMultilineWindow.Show();
+        }
+
+        private void OnMenuClick_OpenSearchFilesWindow(object sender, RoutedEventArgs e) {
+            searchFilesWindow = new SearchFilesWindow(this);
+            searchFilesWindow.Show();
+        }
+
+        private void OnMenuClick_Exit(object sender, RoutedEventArgs e) {
+            Application.Current.Shutdown();
+        }
+
+        private void OnMenuClick_CancelSearch(object sender, RoutedEventArgs e) {
+            CancelSearch();
+        }
+
         private void CancelSearch()
         {
             if (searchInProgress)
@@ -800,7 +829,13 @@ namespace Srch
                         for (int i = 0; i < numberOfStrings; i++)
                         { // create multiple searchthreads
                             charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
-                            searchChar = ((string)splittedStrings[i])[charIndex];                        
+                            try 
+                            {
+                                searchChar = ((string)splittedStrings[i])[charIndex];
+                            } catch (Exception e)
+                            {
+                                continue;
+                            }
                             char searchCh = Char.ToLower(searchChar);
                             string searchStr = (string)searchString.ToLower();
                             int id = i;
