@@ -38,14 +38,14 @@ namespace Srch
         {
             InitializeComponent();
             this.mainWindow = mainWindow;
-            cbCaseSensitive.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.CaseSensitive);
-            rbWholeWordsOnly.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.WholeWordsOnly);
-            //rbNETRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.NETRegEx);
-            //rbFastRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.FastRegEx);
-            rbMultiAll.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchMultiAllStrings);
-            rbMultiAny.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchMultiAnyString);
-            rbMultiNone.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings);
-            rbDefault.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.Default);
+            cbCaseSensitive.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.CaseSensitive);
+            rbWholeWordsOnly.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.WholeWordsOnly);
+            //rbNETRegEx.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.NETRegEx);
+            //rbFastRegEx.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.FastRegEx);
+            rbMultiAll.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.SearchMultiAllStrings);
+            rbMultiAny.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.SearchMultiAnyString);
+            rbMultiNone.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings);
+            rbDefault.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.Default);
             if ((bool)rbMultiAll.IsChecked || (bool)rbMultiNone.IsChecked)
             {
                 rbWholeWordsOnly.IsChecked = false;
@@ -54,10 +54,10 @@ namespace Srch
             }
             else
                 rbWholeWordsOnly.IsEnabled = true;
-            cbIgnoreComments.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.IgnoreComments);
-            cbOnlyShow1EntryPerLine.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine);
-            //rbFastRegEx.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.FastRegEx);
-            cbSearchSubDirectories.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.SearchSubDirectories);
+            cbIgnoreComments.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.IgnoreComments);
+            cbOnlyShow1EntryPerLine.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.OnlyShow1EntryPerLine);
+            //rbFastRegEx.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.FastRegEx);
+            cbSearchSubDirectories.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.SearchSubDirectories);
             if (mainWindow.searchMultilineHistory.Count > 10)
             {
                 mainWindow.searchMultilineHistory.Dequeue();
@@ -66,7 +66,15 @@ namespace Srch
             {
                 cbSearchBox.Items.Add(mainWindow.searchMultilineHistory.ElementAt(i));
             }
-            tbSearchBox.Text = mainWindow.searchString;
+            //tbSearchBox.Text = mainWindow.searchString;
+            if (mainWindow.searchMultilineHistory.Count > 0)
+            {
+                tbSearchBox.Text = mainWindow.searchMultilineHistory.ElementAt(mainWindow.searchMultilineHistory.Count-1);
+            } 
+            else 
+            {
+                tbSearchBox.Text = "";
+            }
             tbFilePattern.Text = mainWindow.fileFilter;
             tbSearchBoxSelectAll();
             this.SizeToContent = SizeToContent.WidthAndHeight;
@@ -83,19 +91,19 @@ namespace Srch
         }
         private void cbCaseSensitiveCheckedChanged(object sender, RoutedEventArgs e)
         {
-            mainWindow.options.SetValue(Options.AvailableOptions.CaseSensitive, (bool)cbCaseSensitive.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.CaseSensitive, (bool)cbCaseSensitive.IsChecked);
         }
         private void cbIgnoreCommentsCheckedChanged(object sender, RoutedEventArgs e)
         {
-            mainWindow.options.SetValue(Options.AvailableOptions.IgnoreComments, (bool)cbIgnoreComments.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.IgnoreComments, (bool)cbIgnoreComments.IsChecked);
         }
         private void cbOnlyShow1EntryPerLineCheckedChanged(object sender, RoutedEventArgs e)
         {
-            mainWindow.options.SetValue(Options.AvailableOptions.OnlyShow1EntryPerLine, (bool)cbOnlyShow1EntryPerLine.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.OnlyShow1EntryPerLine, (bool)cbOnlyShow1EntryPerLine.IsChecked);
         }
         private void cbSearchSubDirectoriesCheckedChanged(object sender, RoutedEventArgs e)
         {
-            mainWindow.options.SetValue(Options.AvailableOptions.SearchSubDirectories, (bool)cbSearchSubDirectories.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.SearchSubDirectories, (bool)cbSearchSubDirectories.IsChecked);
         }
         private async void OnWindowKeyDown(object sender, KeyEventArgs e)
         {
@@ -181,23 +189,23 @@ namespace Srch
         private void RadioButton_Checked(object sender, RoutedEventArgs e)
         {
             //mainWindow.options.SetValue(Options.AvailableOptions.NETRegEx, (bool)rbNETRegEx.IsChecked);
-            mainWindow.options.SetValue(Options.AvailableOptions.WholeWordsOnly, (bool)rbWholeWordsOnly.IsChecked);
-            mainWindow.options.SetValue(Options.AvailableOptions.Default, (bool)rbDefault.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.WholeWordsOnly, (bool)rbWholeWordsOnly.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.Default, (bool)rbDefault.IsChecked);
             //mainWindow.options.SetValue(Options.AvailableOptions.FastRegEx, (bool)rbFastRegEx.IsChecked);
         }
         private void MultiRadioButton_Checked(object sender, RoutedEventArgs e)
         {
-            mainWindow.options.SetValue(Options.AvailableOptions.SearchMultiAllStrings, (bool)rbMultiAll.IsChecked);
-            mainWindow.options.SetValue(Options.AvailableOptions.SearchMultiAnyString, (bool)rbMultiAny.IsChecked);
-            mainWindow.options.SetValue(Options.AvailableOptions.SearchMultiNoneOfStrings, (bool)rbMultiNone.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.SearchMultiAllStrings, (bool)rbMultiAll.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.SearchMultiAnyString, (bool)rbMultiAny.IsChecked);
+            mainWindow.optionsMulti.SetValue(Options.AvailableOptions.SearchMultiNoneOfStrings, (bool)rbMultiNone.IsChecked);
             if ((bool)rbMultiAll.IsChecked || (bool)rbMultiNone.IsChecked)
             {
                 //rbWholeWordsOnly.IsChecked = false;
                 //rbDefault.IsChecked = true;
-                mainWindow.options.SetValue(Options.AvailableOptions.Default, true);
-                mainWindow.options.SetValue(Options.AvailableOptions.WholeWordsOnly, false);
-                rbDefault.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.Default);
-                rbWholeWordsOnly.IsChecked = mainWindow.options.GetValue(Options.AvailableOptions.WholeWordsOnly);
+                mainWindow.optionsMulti.SetValue(Options.AvailableOptions.Default, true);
+                mainWindow.optionsMulti.SetValue(Options.AvailableOptions.WholeWordsOnly, false);
+                rbDefault.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.Default);
+                rbWholeWordsOnly.IsChecked = mainWindow.optionsMulti.GetValue(Options.AvailableOptions.WholeWordsOnly);
                 rbWholeWordsOnly.IsEnabled = false;            
             }
             else

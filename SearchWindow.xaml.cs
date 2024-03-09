@@ -64,7 +64,14 @@ namespace Srch
             {
                 cbSearchBox.Items.Add(mainWindow.searchHistory.ElementAt(i));
             }
-            tbSearchBox.Text = mainWindow.searchString;
+            if (mainWindow.searchHistory.Count > 0)
+            {
+                tbSearchBox.Text = mainWindow.searchHistory.ElementAt(mainWindow.searchHistory.Count-1);
+            } 
+            else 
+            {
+                tbSearchBox.Text = "";
+            }
             tbFilePattern.Text = mainWindow.fileFilter;
             tbSearchBoxSelectAll();
             this.SizeToContent = SizeToContent.WidthAndHeight;

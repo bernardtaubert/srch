@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Media;
+using System.Windows;
 
 namespace Srch
 {
@@ -91,6 +92,7 @@ namespace Srch
                                         optionId = o.GetId();
                                         if (!lineTrimmed.Substring(indexOfEqual + 1).Equals("0"))
                                             mainWindow.options.SetValue(optionId, true);
+                                            mainWindow.optionsMulti.SetValue(optionId, true);
                                     }
                                 }
                             }

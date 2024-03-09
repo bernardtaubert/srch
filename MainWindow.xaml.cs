@@ -29,7 +29,9 @@ namespace Srch
 
         // Runtime Data
         internal Options options = null;
+        internal Options optionsMulti = null;
         private Options tmpOptions = null; // copy of Options while the search is ongoing
+        private Options tmpOptionsMulti = null; // copy of Options while the search is ongoing
 
         private static int maxTbLineLength = 512;
         private string[] searchResults = null;
@@ -93,6 +95,7 @@ namespace Srch
             string[] args = Environment.GetCommandLineArgs();
             workingDirectory = args[0].Remove(args[0].LastIndexOf(Path.DirectorySeparatorChar)); // get path only
             options = new Options(); // search options container
+            optionsMulti = new Options();
             if (File.Exists(workingDirectory + Path.DirectorySeparatorChar + "default_options.txt")) // check if default_options.txt exists
                 ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "default_options.txt", this);
             else
@@ -105,7 +108,10 @@ namespace Srch
                 options.Default.SetValue (true);
                 options.SearchSubDirectories.SetValue (true);
                 options.onlyShow1EntryPerLine.SetValue (true);
-            }            
+                optionsMulti.Default.SetValue (true);
+                optionsMulti.SearchSubDirectories.SetValue (true);
+                optionsMulti.onlyShow1EntryPerLine.SetValue (true);
+            }
             searchPaths.Clear();
             for (int i = 0; i < args.Length; i++)
                 if (i > 0)
@@ -472,7 +478,7 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFiles(filesArr[id].ToArray(), (string)searchString, searchChar, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFiles(filesArr[id].ToArray(), (string)searchString, searchChar, charIndex, id, cancelSearchArr[id].Token, tmpOptions), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
@@ -487,7 +493,7 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFilesCaseInsensitive(filesArr[id].ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFilesCaseInsensitive(filesArr[id].ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token, tmpOptions), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
@@ -504,7 +510,7 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFilesWholeWordsOnly(filesArr[id].ToArray(), (string)searchString, Char.ToLower(searchChar), charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFilesWholeWordsOnly(filesArr[id].ToArray(), (string)searchString, Char.ToLower(searchChar), charIndex, id, cancelSearchArr[id].Token, tmpOptions), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
@@ -519,7 +525,7 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFilesCaseInsensitiveWholeWordsOnly(filesArr[id].ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFilesCaseInsensitiveWholeWordsOnly(filesArr[id].ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token, tmpOptions), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
@@ -543,7 +549,7 @@ namespace Srch
                         threadInProgress[id] = true;
                         try
                         {
-                            await Task.Run(() => ParseFilesFastRegEx(filesArr[id].ToArray(), fREx, tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive), id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                            await Task.Run(() => ParseFilesFastRegEx(filesArr[id].ToArray(), fREx, tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive), id, cancelSearchArr[id].Token, tmpOptions), cancelSearchArr[id].Token);
                         }
                         catch (OperationCanceledException e) { break; }
                     }
@@ -566,7 +572,7 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFilesRegEx(filesArr[id].ToArray(), (string)searchString.ToLower(), tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive), id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFilesRegEx(filesArr[id].ToArray(), (string)searchString.ToLower(), tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive), id, cancelSearchArr[id].Token, tmpOptions), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
@@ -687,7 +693,7 @@ namespace Srch
 
         internal async void StartMultiSearch(string searchString, string filePattern)
         {            
-            tmpOptions = this.options;
+            tmpOptionsMulti = this.optionsMulti;
             if (!searchInProgress)
             {
                 if (filePattern.Equals("")) filePattern = "*";
@@ -735,7 +741,7 @@ namespace Srch
                 string[] tmpFiles = null;
                 try
                 {
-                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchSubDirectories))
+                    if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchSubDirectories))
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.AllDirectories);
                     else
                         tmpFiles = Directory.GetFiles(s, filePattern, SearchOption.TopDirectoryOnly);
@@ -800,7 +806,7 @@ namespace Srch
             #region Option and search algorithm selection            
             string[] splittedStrings = searchString.Split("\r\n");
             int optionId = 0; /* selector */
-            List<Option> oList = tmpOptions.GetList();
+            List<Option> oList = tmpOptionsMulti.GetList();
             for (int i = 0; i < 4; i++)
             { /* first 4 options are the radio buttons to specifiy the RegEx mode */
                 if (oList[i].GetValue() == true)
@@ -808,8 +814,42 @@ namespace Srch
             }
             switch (optionId)
             {
-                case (int)Options.AvailableOptions.Default:
-                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                case (int)Options.AvailableOptions.WholeWordsOnly:
+                    if (tmpOptionsMulti.GetValue(Options.AvailableOptions.CaseSensitive))
+                    {
+                        for (int i = 0; i < threads; i++)
+                        { // create multiple searchthreads
+                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
+                            searchChar = ((string)splittedStrings[i])[charIndex];                        
+                            int id = i;
+                            threadInProgress[id] = true;
+                            try
+                            {
+                                await Task.Run(() => ParseFilesWholeWordsOnly(files.ToArray(), splittedStrings[i], Char.ToLower(searchChar), charIndex, id, cancelSearchArr[id].Token, tmpOptionsMulti), cancelSearchArr[id].Token);
+                            }
+                            catch (OperationCanceledException e) { break; }
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < numberOfStrings; i++)
+                        { // create multiple searchthreads
+                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
+                            searchChar = ((string)splittedStrings[i])[charIndex];                           
+                            char searchCh = Char.ToLower(searchChar);
+                            string searchStr = (string)splittedStrings[i].ToLower();
+                            int id = i;
+                            threadInProgress[id] = true;
+                            try
+                            {
+                                await Task.Run(() => ParseFilesCaseInsensitiveWholeWordsOnly(files.ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token, tmpOptionsMulti), cancelSearchArr[id].Token);
+                            }
+                            catch (OperationCanceledException e) { break; }
+                        }
+                    }
+                    break;
+                default:
+                    if (tmpOptionsMulti.GetValue(Options.AvailableOptions.CaseSensitive))
                     {
                         for (int i = 0; i < numberOfStrings; i++)
                         { // create multiple searchthreads
@@ -819,7 +859,7 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFiles(files.ToArray(), splittedStrings[i], searchChar, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFiles(files.ToArray(), splittedStrings[i], searchChar, charIndex, id, cancelSearchArr[id].Token, tmpOptionsMulti), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
@@ -842,47 +882,11 @@ namespace Srch
                             threadInProgress[id] = true;
                             try
                             {
-                                await Task.Run(() => ParseFilesCaseInsensitive(files.ToArray(), splittedStrings[i].ToLower(), searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
+                                await Task.Run(() => ParseFilesCaseInsensitive(files.ToArray(), splittedStrings[i].ToLower(), searchCh, charIndex, id, cancelSearchArr[id].Token, tmpOptionsMulti), cancelSearchArr[id].Token);
                             }
                             catch (OperationCanceledException e) { break; }
                         }
                     }
-                    break;
-                case (int)Options.AvailableOptions.WholeWordsOnly:
-                    if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
-                    {
-                        for (int i = 0; i < threads; i++)
-                        { // create multiple searchthreads
-                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
-                            searchChar = ((string)splittedStrings[i])[charIndex];                        
-                            int id = i;
-                            threadInProgress[id] = true;
-                            try
-                            {
-                                await Task.Run(() => ParseFilesWholeWordsOnly(files.ToArray(), splittedStrings[i], Char.ToLower(searchChar), charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            }
-                            catch (OperationCanceledException e) { break; }
-                        }
-                    }
-                    else
-                    {
-                        for (int i = 0; i < numberOfStrings; i++)
-                        { // create multiple searchthreads
-                            charIndex = LanguageConventions.GetRarestCharIndex((string)splittedStrings[i]); // default search w/o RegEx speed can be improved by searching for the rarest char
-                            searchChar = ((string)splittedStrings[i])[charIndex];                           
-                            char searchCh = Char.ToLower(searchChar);
-                            string searchStr = (string)splittedStrings[i].ToLower();
-                            int id = i;
-                            threadInProgress[id] = true;
-                            try
-                            {
-                                await Task.Run(() => ParseFilesCaseInsensitiveWholeWordsOnly(files.ToArray(), searchStr, searchCh, charIndex, id, cancelSearchArr[id].Token), cancelSearchArr[id].Token);
-                            }
-                            catch (OperationCanceledException e) { break; }
-                        }
-                    }
-                    break;
-                default:
                     break;
             }
             #endregion
@@ -914,9 +918,9 @@ namespace Srch
                 List <string> tmpFiles = files;
                 for (int i = 0; i < numberOfStrings; i++)
                 { // update UI on completion of all threads
-                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAnyString))
+                    if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiAnyString))
                         tbMainAppend(searchResults[i]);
-                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAllStrings))
+                    else if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiAllStrings))
                     {
                         string line = "";
                         StringReader stringReader = null;
@@ -935,7 +939,7 @@ namespace Srch
                             Boolean containsAllStrings = true;
                             for (int j = 0; j < splittedStrings.Length; j++)
                             {
-                                if (tmpOptions.GetValue(Options.AvailableOptions.CaseSensitive))
+                                if (tmpOptionsMulti.GetValue(Options.AvailableOptions.CaseSensitive))
                                 {
                                     if (!line.Contains(splittedStrings[j]))
                                         containsAllStrings = false;
@@ -958,7 +962,7 @@ namespace Srch
                         if (stringReader != null)
                             stringReader.Close();
                     }
-                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
+                    else if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
                     {
                         try
                         {
@@ -969,7 +973,7 @@ namespace Srch
                         }
                     }
                 }
-                if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
+                if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
                 {
                     if (tmpFiles != null)
                         foreach (string s in tmpFiles)
@@ -988,11 +992,11 @@ namespace Srch
                 else
                 {
                     long endTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
-                    if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAnyString))
+                    if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiAnyString))
                         tbMainAppend("(" + (endTime - startTime) + "ms): \n<" + searchString + ">\n was found " + counter + " times");
-                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiAllStrings))
+                    else if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiAllStrings))
                         tbMainAppend("(" + (endTime - startTime) + "ms): \n<" + searchString + ">\n was found in " + appendedLines.Count + " files");
-                    else if (tmpOptions.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
+                    else if (tmpOptionsMulti.GetValue(Options.AvailableOptions.SearchMultiNoneOfStrings))
                         tbMainAppend("(" + (endTime - startTime) + "ms): \n<" + searchString + ">\n none of the strings was found in " + tmpFiles.Count + " files");
                 }
                 tbMainScrollToEnd();
@@ -1004,7 +1008,7 @@ namespace Srch
             searchInProgress = false;
         }
 
-        private void ParseFiles(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        private void ParseFiles(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch, Options tmpOptions)
         {
             StringWriter stringWriter = new StringWriter();
             try
@@ -1137,7 +1141,7 @@ namespace Srch
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesFastRegEx(string[] files, FastRegEx fREx, bool caseSensitive, int ThreadId, CancellationToken cancelSearch)
+        private void ParseFilesFastRegEx(string[] files, FastRegEx fREx, bool caseSensitive, int ThreadId, CancellationToken cancelSearch, Options tmpOptions)
         {
             StringWriter stringWriter = new StringWriter();
             RegexOptions regExOpt = RegexOptions.None;
@@ -1204,7 +1208,7 @@ namespace Srch
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesCaseInsensitive(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        private void ParseFilesCaseInsensitive(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch, Options tmpOptions)
         {
             StringWriter stringWriter = new StringWriter();
             try
@@ -1338,7 +1342,7 @@ namespace Srch
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        private void ParseFilesWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch, Options tmpOptions)
         {
             StringWriter stringWriter = new StringWriter();
             try
@@ -1518,7 +1522,7 @@ namespace Srch
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesCaseInsensitiveWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch)
+        private void ParseFilesCaseInsensitiveWholeWordsOnly(string[] files, string searchString, char searchChar, int charIndex, int ThreadId, CancellationToken cancelSearch, Options tmpOptions)
         {
             StringWriter stringWriter = new StringWriter();
             try
@@ -1698,7 +1702,7 @@ namespace Srch
             threadInProgress[ThreadId] = false;
             stringWriter.Close();
         }
-        private void ParseFilesRegEx(string[] files, string searchString, bool caseSensitive, int ThreadId, CancellationToken cancelSearch)
+        private void ParseFilesRegEx(string[] files, string searchString, bool caseSensitive, int ThreadId, CancellationToken cancelSearch, Options tmpOptions)
         {
             StringWriter stringWriter = new StringWriter();
             RegexOptions regExOpt = RegexOptions.None;
@@ -1857,7 +1861,7 @@ namespace Srch
             }
             if (Keyboard.IsKeyDown(Key.F10))
             { // this is to work around the windows default operation when pressing F10 key, which is to activate the window menu bar
-                ParseOptions.ParseOptionsFromFile("F10.txt", this);
+                ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F10.txt", this);
                 PrintCurrentSearchPath();
                 e.Handled = true;
             }
@@ -1876,47 +1880,47 @@ namespace Srch
                     tbMainScrollDown();
                     break;
                 case Key.F1:
-                    ParseOptions.ParseOptionsFromFile("F1.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F1.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F2:
-                    ParseOptions.ParseOptionsFromFile("F2.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F2.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F3:
-                    ParseOptions.ParseOptionsFromFile("F3.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F3.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F4:
-                    ParseOptions.ParseOptionsFromFile("F4.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F4.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F5:
-                    ParseOptions.ParseOptionsFromFile("F5.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F5.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F6:
-                    ParseOptions.ParseOptionsFromFile("F6.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F6.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F7:
-                    ParseOptions.ParseOptionsFromFile("F7.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F7.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F8:
-                    ParseOptions.ParseOptionsFromFile("F8.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F8.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F9:
-                    ParseOptions.ParseOptionsFromFile("F9.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F9.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F11:
-                    ParseOptions.ParseOptionsFromFile("F11.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F11.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 case Key.F12:
-                    ParseOptions.ParseOptionsFromFile("F12.txt", this);
+                    ParseOptions.ParseOptionsFromFile(workingDirectory + Path.DirectorySeparatorChar + "F12.txt", this);
                     PrintCurrentSearchPath();
                     break;
                 default:
